@@ -1,3 +1,4 @@
+import { Account } from "@/components/Account";
 import { Link, Outlet } from "@tanstack/react-router";
 import { CalendarDays, Users, BarChart3 } from "lucide-react";
 
@@ -10,6 +11,7 @@ const tabs = [
 export function AppShell() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background">
+      <Account />
       <main className="flex-1 pb-28">
         <Outlet />
       </main>
