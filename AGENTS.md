@@ -8,3 +8,9 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+## Application architecture
+- Mount the shared app shell and store in the root route so all three content pages share navigation and data.
+- Persist students, lessons and court settings in Cloud with owner-scoped RLS; never use browser storage as the authoritative data store.
+- Keep attendance credit accounting in the database trigger and manual balance adjustments atomic, preventing double deductions and lost updates.
+- Keep the reusable sheet outside leaf routes so other pages do not import route modules.
