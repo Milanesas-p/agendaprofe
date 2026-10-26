@@ -3,8 +3,8 @@
     "capability": "code",
     "source": "ZIP",
     "outcome": "migrate",
-    "status": "in_progress",
-    "next_action": "Import and repair app mounting and design tokens"
+    "status": "verified",
+    "next_action": "None; authenticated create/book/attendance/undo/reload checked; tests and linter passed"
   },
   {
     "capability": "records",
@@ -17,8 +17,8 @@
     "capability": "schema",
     "source": "Students, lessons, settings in store.tsx",
     "outcome": "migrate",
-    "status": "in_progress",
-    "next_action": "Create owner-scoped Cloud tables"
+    "status": "verified",
+    "next_action": "None; authenticated create/book/attendance/undo/reload checked; tests and linter passed"
   },
   {
     "capability": "auth identities",
@@ -31,8 +31,8 @@
     "capability": "authorization",
     "source": "No source access controls",
     "outcome": "migrate",
-    "status": "in_progress",
-    "next_action": "Add authenticated owner isolation"
+    "status": "verified",
+    "next_action": "None; authenticated create/book/attendance/undo/reload checked; tests and linter passed"
   },
   {
     "capability": "uploaded file bytes",
@@ -94,7 +94,7 @@
     "capability": "verification",
     "source": "Source tests and browser flows",
     "outcome": "migrate",
-    "status": "in_progress",
-    "next_action": "Exercise attendance, reservation and student changes"
+    "status": "verified",
+    "next_action": "None; authenticated create/book/attendance/undo/reload checked; tests and linter passed"
   }
 ]
