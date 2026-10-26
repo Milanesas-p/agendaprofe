@@ -1,0 +1,100 @@
+[
+  {
+    "capability": "code",
+    "source": "ZIP",
+    "outcome": "migrate",
+    "status": "verified",
+    "next_action": "None; authenticated create/book/attendance/undo/reload checked; tests and linter passed"
+  },
+  {
+    "capability": "records",
+    "source": "Browser localStorage; ZIP has illustrative seed rows only",
+    "outcome": "migrate",
+    "status": "pending",
+    "next_action": "Request existing browser data export after preview"
+  },
+  {
+    "capability": "schema",
+    "source": "Students, lessons, settings in store.tsx",
+    "outcome": "migrate",
+    "status": "verified",
+    "next_action": "None; authenticated create/book/attendance/undo/reload checked; tests and linter passed"
+  },
+  {
+    "capability": "auth identities",
+    "source": "No source authentication",
+    "outcome": "not_applicable",
+    "status": "verified",
+    "next_action": "None"
+  },
+  {
+    "capability": "authorization",
+    "source": "No source access controls",
+    "outcome": "migrate",
+    "status": "verified",
+    "next_action": "None; authenticated create/book/attendance/undo/reload checked; tests and linter passed"
+  },
+  {
+    "capability": "uploaded file bytes",
+    "source": "No source uploads",
+    "outcome": "not_applicable",
+    "status": "verified",
+    "next_action": "None"
+  },
+  {
+    "capability": "external providers",
+    "source": "No call sites detected",
+    "outcome": "not_applicable",
+    "status": "verified",
+    "next_action": "None"
+  },
+  {
+    "capability": "public endpoints",
+    "source": "No call sites detected",
+    "outcome": "not_applicable",
+    "status": "verified",
+    "next_action": "None"
+  },
+  {
+    "capability": "callbacks",
+    "source": "No call sites detected",
+    "outcome": "not_applicable",
+    "status": "verified",
+    "next_action": "None"
+  },
+  {
+    "capability": "webhooks",
+    "source": "No call sites detected",
+    "outcome": "not_applicable",
+    "status": "verified",
+    "next_action": "None"
+  },
+  {
+    "capability": "schedules",
+    "source": "No call sites detected",
+    "outcome": "not_applicable",
+    "status": "verified",
+    "next_action": "None"
+  },
+  {
+    "capability": "secrets",
+    "source": "No call sites detected",
+    "outcome": "not_applicable",
+    "status": "verified",
+    "next_action": "None"
+  },
+  {
+    "capability": "cutover",
+    "source": "Unpublished source snapshot",
+    "outcome": "pending",
+    "status": "pending",
+    "next_action": "User publishes after verification"
+  },
+  {
+    "capability": "verification",
+    "source": "Source tests and browser flows",
+    "outcome": "migrate",
+    "status": "verified",
+    "next_action": "None; authenticated create/book/attendance/undo/reload checked; tests and linter passed"
+  }
+]
