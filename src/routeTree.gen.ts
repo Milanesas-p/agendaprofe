@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AlumnosRouteImport } from './routes/alumnos'
+import { Route as ResumenRouteImport } from './routes/resumen'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AlumnosRoute = AlumnosRouteImport.update({
+  id: '/alumnos',
+  path: '/alumnos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResumenRoute = ResumenRouteImport.update({
+  id: '/resumen',
+  path: '/resumen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/alumnos': typeof AlumnosRoute
+  '/resumen': typeof ResumenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/alumnos': typeof AlumnosRoute
+  '/resumen': typeof ResumenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/alumnos': typeof AlumnosRoute
+  '/resumen': typeof ResumenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/alumnos' | '/resumen'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/alumnos' | '/resumen'
+  id: '__root__' | '/' | '/alumnos' | '/resumen'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AlumnosRoute: typeof AlumnosRoute
+  ResumenRoute: typeof ResumenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/alumnos': {
+      id: '/alumnos'
+      path: '/alumnos'
+      fullPath: '/alumnos'
+      preLoaderRoute: typeof AlumnosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resumen': {
+      id: '/resumen'
+      path: '/resumen'
+      fullPath: '/resumen'
+      preLoaderRoute: typeof ResumenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AlumnosRoute: AlumnosRoute,
+  ResumenRoute: ResumenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
