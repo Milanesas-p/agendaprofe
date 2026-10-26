@@ -67,7 +67,7 @@ function Agenda() {
             const k = iso(d);
             const n = lessons.filter((l) => l.date === k && l.status !== "cancelada").length;
             return (
-              <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className={`flex min-w-14 flex-col items-center rounded-xl border-2 py-2 ${k === day ? "border-foreground bg-primary text-primary-foreground" : "border-border"}`}>
+              <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className={`flex h-auto min-w-14 shrink-0 flex-col items-center gap-1 rounded-lg border-2 py-2 ${k === day ? "border-foreground bg-primary text-primary-foreground" : "border-border"}`}>
                 <span className="text-xs font-bold uppercase">{DOW[d.getDay()]}</span>
                 <span className="font-display text-2xl leading-none">{d.getDate()}</span>
                 <span className="text-xs font-semibold">{n}</span>
@@ -115,7 +115,7 @@ function Agenda() {
                       </div>
                     )}
                     {l.status === "cancelada" && (
-                      <Button variant="ghost" onClick={() => setStatus(l.id, "programada")} className="mt-2 h-11 w-full rounded-lg border-2 border-foreground font-bold">Reactivar</Button>
+                      <div className="mt-2 grid grid-cols-2 gap-2"><Button variant="ghost" onClick={() => setStatus(l.id, "programada")} className="h-11 rounded-lg border-2 border-foreground font-bold">Reactivar</Button><Button variant="outline" className="h-11" onClick={() => setAdding(t)}><Plus />Nueva reserva</Button></div>
                     )}
                   </div>
                 </SwipeCard>
