@@ -14,13 +14,98 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      court_settings: {
+        Row: {
+          block_min: number
+          end_hour: number
+          owner_id: string
+          start_hour: number
+        }
+        Insert: {
+          block_min?: number
+          end_hour?: number
+          owner_id?: string
+          start_hour?: number
+        }
+        Update: {
+          block_min?: number
+          end_hour?: number
+          owner_id?: string
+          start_hour?: number
+        }
+        Relationships: []
+      }
+      lessons: {
+        Row: {
+          date: string
+          id: string
+          owner_id: string
+          start: string
+          status: string
+          student_id: string
+        }
+        Insert: {
+          date: string
+          id?: string
+          owner_id?: string
+          start: string
+          status?: string
+          student_id: string
+        }
+        Update: {
+          date?: string
+          id?: string
+          owner_id?: string
+          start?: string
+          status?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lessons_student_id_owner_id_fkey"
+            columns: ["student_id", "owner_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id", "owner_id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          balance: number
+          id: string
+          name: string
+          owner_id: string
+          pay: string
+          type: string
+        }
+        Insert: {
+          balance?: number
+          id?: string
+          name: string
+          owner_id?: string
+          pay: string
+          type: string
+        }
+        Update: {
+          balance?: number
+          id?: string
+          name?: string
+          owner_id?: string
+          pay?: string
+          type?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      adjust_balance: {
+        Args: { delta: number; student: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
