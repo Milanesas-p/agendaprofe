@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LogIn, LogOut, CircleUserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/Sheet";
@@ -16,14 +16,19 @@ export function Account() {
   const [message,setMessage] = useState("");
   const [pending,setPending] = useState(false);
   // Recovery links establish a temporary session before asking for a new password.
-  const recovery = typeof window !== "undefined" && window.location.hash.includes("type=recovery");
+  const [recovery,setRecovery] = useState(false);
+  useEffect(() => {
+    setRecovery(window.location.hash.includes("type=recovery"));
+    const {data} = supabase.auth.onAuthStateChange(event => {if(event === "PASSWORD_RECOVERY") setRecovery(true);});
+    return () => data.subscription.unsubscribe();
+  },[]);
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setPending(true); setMessage("");
     const result = mode === "password" || recovery ? await supabase.auth.updateUser({password}) : mode === "signup" ? await supabase.auth.signUp({email,password,options:{emailRedirectTo:window.location.origin}}) : mode === "reset" ? await supabase.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin}) : await supabase.auth.signInWithPassword({email,password});
     setPending(false);
     if(result.error) { setMessage(result.error.message); return; }
     if(mode === "signup" || mode === "reset") setMessage("Revisá tu correo para continuar.");
-    else { setOpen(false); setPassword(""); if(recovery) window.history.replaceState(null,"",window.location.pathname); }
+    else { setOpen(false); setPassword(""); if(recovery) { setRecovery(false); window.history.replaceState(null,"",window.location.pathname); } }
   }
   return <>
     <div className="account-bar"><span className="font-display text-lg">PÁDEL PRO</span><Button variant="ghost" size="sm" onClick={() => {setMessage("");setOpen(true);}}><CircleUserRound />{loading ? "Cargando…" : session ? "Mi cuenta" : "Ingresar"}</Button></div>

@@ -61,7 +61,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addLesson: l => { if(!slots(st.settings).includes(l.start)) { toast.error("Horario fuera de los bloques configurados."); return; } void mutate(() => supabase.from("lessons").insert({ date:l.date,start:l.start,student_id:l.studentId })); },
     addStudent: s => { void mutate(() => supabase.from("students").insert({ ...s,name:s.name.trim() })); },
     adjustBalance: (id,delta) => { void mutate(() => supabase.rpc("adjust_balance",{student:id,delta})); },
-    setSettings: s => { if(!validSettings(s)) return; if(st.lessons.some(l => l.status !== "cancelada" && !slots(s).includes(l.start))) { toast.error("Los nuevos bloques dejarían clases existentes fuera de la agenda."); return; } void mutate(() => supabase.from("court_settings").upsert({ owner_id:session?.user.id,start_hour:s.startHour,end_hour:s.endHour,block_min:s.blockMin })); },
+    setSettings: s => { if(!validSettings(s) || !session) return; const ownerId=session.user.id; if(st.lessons.some(l => l.status !== "cancelada" && !slots(s).includes(l.start))) { toast.error("Los nuevos bloques dejarían clases existentes fuera de la agenda."); return; } void mutate(() => supabase.from("court_settings").upsert({ owner_id:ownerId,start_hour:s.startHour,end_hour:s.endHour,block_min:s.blockMin })); },
   };
   return <C.Provider value={ctx}>{children}</C.Provider>;
 }
