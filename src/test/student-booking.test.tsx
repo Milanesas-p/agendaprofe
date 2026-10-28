@@ -8,6 +8,14 @@ const { store } = vi.hoisted(() => ({ store: {
   addStudent: vi.fn(), updateStudent: vi.fn(), addLesson: vi.fn(), adjustBalance: vi.fn(),
 } }));
 vi.mock("@/lib/store", async importOriginal => ({ ...await importOriginal<typeof import("@/lib/store")>(), useStore: () => store }));
+vi.mock("@/server/data", () => ({
+  getSnapshot: vi.fn(), addStudent: vi.fn(), updateStudent: vi.fn(), addLesson: vi.fn(),
+  adjustBalance: vi.fn(), setLessonStatus: vi.fn(), saveSettings: vi.fn(),
+}));
+vi.mock("@/server/auth", () => ({
+  getCurrentUser: vi.fn(), loginUser: vi.fn(), registerUser: vi.fn(), logoutUser: vi.fn(),
+}));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 afterEach(cleanup);
 beforeEach(() => { vi.clearAllMocks(); store.lessons = []; store.addStudent.mockResolvedValue("student-1"); store.addLesson.mockResolvedValue(true); });
 
