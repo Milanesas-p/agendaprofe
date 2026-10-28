@@ -7,3 +7,4 @@
 - [x] Elegir fechas y volver a hoy; corregir vista semanal.
 - [x] Mejorar cierre y navegación de ventanas; verificar fechas, búsqueda y guardado fallido.
 - [ ] Verificar edición y reserva guardadas con una cuenta real: no hay usuarios registrados todavía.
+- [ ] Cambiar saldo inicial por clases pagadas y permitir reservar desde el alumno.

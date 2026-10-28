@@ -24,7 +24,7 @@ export function applyStatus(lesson: Lesson, student: Student, next: ClassStatus)
 }
 export const balanceLabel = (b: number) => b > 0 ? `+${b}` : `${b}`;
 type State = { students: Student[]; lessons: Lesson[]; settings: Settings };
-type Ctx = State & { session: Session | null; loading: boolean; busy: boolean; setStatus: (id: string, s: ClassStatus) => Promise<boolean>; addLesson: (l: Omit<Lesson,"id"|"status">) => Promise<boolean>; addStudent: (s: Omit<Student,"id">) => Promise<boolean>; updateStudent: (id: string, s: Pick<Student,"name"|"type"|"pay">) => Promise<boolean>; adjustBalance: (id: string, delta: number) => Promise<boolean>; setSettings: (s: Settings) => Promise<boolean> };
+type Ctx = State & { session: Session | null; loading: boolean; busy: boolean; setStatus: (id: string, s: ClassStatus) => Promise<boolean>; addLesson: (l: Omit<Lesson,"id"|"status">) => Promise<boolean>; addStudent: (s: Omit<Student,"id">) => Promise<string | false>; updateStudent: (id: string, s: Pick<Student,"name"|"type"|"pay">) => Promise<boolean>; adjustBalance: (id: string, delta: number) => Promise<boolean>; setSettings: (s: Settings) => Promise<boolean> };
 const empty: State = { students: [], lessons: [], settings: { startHour: 8, endHour: 22, blockMin: 60 } };
 const C = createContext<Ctx | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -61,7 +61,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const ctx: Ctx = { ...st,session,loading,busy,
     setStatus: (id,status) => mutate(() => supabase.from("lessons").update({status}).eq("id",id)),
     addLesson: async l => { if(!slots(st.settings).includes(l.start)) { toast.error("Horario fuera de los bloques configurados."); return false; } return mutate(() => supabase.from("lessons").insert({ date:l.date,start:l.start,student_id:l.studentId })); },
-    addStudent: s => mutate(() => supabase.from("students").insert({ ...s,name:s.name.trim() })),
+    addStudent: async s => { const id = crypto.randomUUID(); return await mutate(() => supabase.from("students").insert({ ...s,id,name:s.name.trim() })) ? id : false; },
     updateStudent: (id,s) => mutate(() => supabase.from("students").update({ name:s.name.trim(),type:s.type,pay:s.pay }).eq("id",id)),
     adjustBalance: (id,delta) => mutate(() => supabase.rpc("adjust_balance",{student:id,delta})),
     setSettings: async s => { if(!validSettings(s) || !session) return false; const ownerId=session.user.id; if(st.lessons.some(l => l.status !== "cancelada" && !slots(s).includes(l.start))) { toast.error("Los nuevos bloques dejarían clases existentes fuera de la agenda."); return false; } return mutate(() => supabase.from("court_settings").upsert({ owner_id:ownerId,start_hour:s.startHour,end_hour:s.endHour,block_min:s.blockMin })); },
