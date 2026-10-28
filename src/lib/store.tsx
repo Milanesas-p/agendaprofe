@@ -9,7 +9,7 @@ import {
   setLessonStatus as setLessonStatusFn,
   updateStudent as updateStudentFn,
 } from "@/server/data";
-import { getCurrentUser, loginUser, logoutUser, registerUser, type AuthUser } from "@/server/auth";
+import { getCurrentUser, loginUser, logoutUser, type AuthUser } from "@/server/auth";
 import { balanceDelta, slots, validSettings, type ClassStatus } from "./rules";
 
 export { slots, validSettings };
@@ -33,7 +33,6 @@ type Ctx = State & {
   loading: boolean;
   busy: boolean;
   signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   setStatus: (id: string, s: ClassStatus) => Promise<boolean>;
   addLesson: (l: Omit<Lesson, "id" | "status">) => Promise<boolean>;
@@ -109,15 +108,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function signUp(email: string, password: string): Promise<string | null> {
-    try {
-      setUser(await registerUser({ data: { email, password } }));
-      return null;
-    } catch (error) {
-      return messageOf(error, "No pudimos crear la cuenta.");
-    }
-  }
-
   async function signOut(): Promise<void> {
     try { await logoutUser(); } catch { /* the local session is cleared either way */ }
     setUser(null);
@@ -125,7 +115,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   const ctx: Ctx = {
-    ...st, user, loading, busy, signIn, signUp, signOut,
+    ...st, user, loading, busy, signIn, signOut,
     setStatus: (id, status) => changed(() => setLessonStatusFn({ data: { id, status } }), "No se pudo guardar el cambio."),
     addLesson: async (l) => {
       if (!slots(st.settings).includes(l.start)) { toast.error("Horario fuera de los bloques configurados."); return false; }

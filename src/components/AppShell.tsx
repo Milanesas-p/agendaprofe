@@ -1,6 +1,8 @@
 import { Account } from "@/components/Account";
+import { LoginScreen } from "@/components/LoginScreen";
 import { Link, Outlet } from "@tanstack/react-router";
 import { CalendarDays, Users, BarChart3 } from "lucide-react";
+import { useStore } from "@/lib/store";
 
 const tabs = [
   { to: "/", label: "Agenda", icon: CalendarDays },
@@ -9,6 +11,18 @@ const tabs = [
 ] as const;
 
 export function AppShell() {
+  const { user, loading } = useStore();
+
+  // Login is the only entry point: nothing of the app renders without a session.
+  if (loading) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-md items-center justify-center bg-court font-display text-2xl tracking-wider text-court-foreground">
+        Cargando…
+      </div>
+    );
+  }
+  if (!user) return <LoginScreen />;
+
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background">
       <Account />

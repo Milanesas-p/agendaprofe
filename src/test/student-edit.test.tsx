@@ -21,7 +21,6 @@ vi.mock("@/server/data", () => ({
 vi.mock("@/server/auth", () => ({
   getCurrentUser: vi.fn(async () => ({ id: "owner", email: "owner@test" })),
   loginUser: vi.fn(),
-  registerUser: vi.fn(),
   logoutUser: vi.fn(),
 }));
 

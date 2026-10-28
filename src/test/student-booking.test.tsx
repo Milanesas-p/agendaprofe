@@ -13,7 +13,7 @@ vi.mock("@/server/data", () => ({
   adjustBalance: vi.fn(), setLessonStatus: vi.fn(), saveSettings: vi.fn(),
 }));
 vi.mock("@/server/auth", () => ({
-  getCurrentUser: vi.fn(), loginUser: vi.fn(), registerUser: vi.fn(), logoutUser: vi.fn(),
+  getCurrentUser: vi.fn(), loginUser: vi.fn(), logoutUser: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 afterEach(cleanup);

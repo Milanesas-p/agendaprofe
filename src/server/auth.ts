@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
+import { normalizeEmail, validatePassword } from "../lib/credentials";
 import { db } from "./db";
-import { hashPassword, verifyPassword } from "./password";
+import { verifyPassword } from "./password";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, hashSessionToken, newSessionToken } from "./session";
 import { findSessionUser, type AuthUser } from "./session-user";
 
@@ -12,27 +12,9 @@ type Credentials = { email: string; password: string };
 
 type UserRow = { id: string; email: string; password_hash: string };
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function cleanEmail(value: unknown): string {
-  if (typeof value !== "string") throw new Error("Ingresá un correo válido.");
-  const email = value.trim().toLowerCase();
-  if (email.length < 5 || email.length > 255 || !EMAIL_PATTERN.test(email)) {
-    throw new Error("Ingresá un correo válido.");
-  }
-  return email;
-}
-
-function cleanPassword(value: unknown): string {
-  if (typeof value !== "string" || value.length < 8 || value.length > 200) {
-    throw new Error("La contraseña necesita al menos 8 caracteres.");
-  }
-  return value;
-}
-
 function readCredentials(input: unknown): Credentials {
   const raw = (input ?? {}) as Record<string, unknown>;
-  return { email: cleanEmail(raw["email"]), password: cleanPassword(raw["password"]) };
+  return { email: normalizeEmail(raw["email"]), password: validatePassword(raw["password"]) };
 }
 
 async function startSession(userId: string): Promise<void> {
@@ -49,27 +31,6 @@ async function startSession(userId: string): Promise<void> {
     maxAge: SESSION_TTL_SECONDS,
   });
 }
-
-export const registerUser = createServerFn({ method: "POST" })
-  .validator(readCredentials)
-  .handler(async ({ data }): Promise<AuthUser> => {
-    const id = randomUUID();
-    const passwordHash = await hashPassword(data.password);
-    try {
-      await db().execute("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
-        id,
-        data.email,
-        passwordHash,
-      ]);
-    } catch (error) {
-      if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
-        throw new Error("Ese correo ya está registrado.");
-      }
-      throw error;
-    }
-    await startSession(id);
-    return { id, email: data.email };
-  });
 
 export const loginUser = createServerFn({ method: "POST" })
   .validator(readCredentials)
