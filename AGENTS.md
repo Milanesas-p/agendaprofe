@@ -14,3 +14,6 @@
 - Persist students, lessons and court settings in Cloud with owner-scoped RLS; never use browser storage as the authoritative data store.
 - Keep attendance credit accounting in the database trigger and manual balance adjustments atomic, preventing double deductions and lost updates.
 - Keep the reusable sheet outside leaf routes so other pages do not import route modules.
+- Use the shared Radix-backed sheet for focus trapping, Escape dismissal and scroll locking.
+- Return mutation success from the shared store and close editors only after successful persistence; edit student details without writing their credit balance.
+- Keep date navigation and name matching in browser-safe helpers; initialize the current local date after hydration to avoid server/client timezone mismatches.
