@@ -17,7 +17,7 @@ export type { ClassStatus };
 
 export type StudentType = "fijo" | "rotativo";
 export type PayMode = "mensual" | "semanal";
-export type Student = { id: string; name: string; type: StudentType; pay: PayMode; balance: number };
+export type Student = { id: string; name: string; type: StudentType; pay: PayMode; phone: string | null; balance: number };
 export type Lesson = { id: string; date: string; start: string; studentId: string; status: ClassStatus };
 export type Settings = { startHour: number; endHour: number; blockMin: number };
 export const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -37,7 +37,7 @@ type Ctx = State & {
   setStatus: (id: string, s: ClassStatus) => Promise<boolean>;
   addLesson: (l: Omit<Lesson, "id" | "status">) => Promise<boolean>;
   addStudent: (s: Omit<Student, "id">) => Promise<string | false>;
-  updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay">) => Promise<boolean>;
+  updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay" | "phone">) => Promise<boolean>;
   adjustBalance: (id: string, delta: number) => Promise<boolean>;
   setSettings: (s: Settings) => Promise<boolean>;
 };
@@ -123,13 +123,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     addStudent: async (s) => {
       const result = await commit(
-        () => addStudentFn({ data: { name: s.name.trim(), type: s.type, pay: s.pay, balance: s.balance } }),
+        () => addStudentFn({ data: { name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, balance: s.balance } }),
         "No se pudo guardar el alumno.",
       );
       return typeof result === "string" ? result : false;
     },
     updateStudent: (id, s) =>
-      changed(() => updateStudentFn({ data: { id, name: s.name.trim(), type: s.type, pay: s.pay } }), "No se pudo guardar el alumno."),
+      changed(() => updateStudentFn({ data: { id, name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone } }), "No se pudo guardar el alumno."),
     adjustBalance: (id, delta) =>
       changed(() => adjustBalanceFn({ data: { id, delta } }), "No se pudo ajustar el saldo."),
     setSettings: async (s) => {

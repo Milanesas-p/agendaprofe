@@ -38,11 +38,11 @@ describe("student editing", () => {
     await waitFor(() => expect(store?.loading).toBe(false));
 
     await act(async () => {
-      await store?.updateStudent("student-1", { name: " María Pérez ", type: "rotativo", pay: "semanal" });
+      await store?.updateStudent("student-1", { name: " María Pérez ", type: "rotativo", pay: "semanal", phone: "5492302666351" });
     });
 
     expect(updateStudent).toHaveBeenCalledWith({
-      data: { id: "student-1", name: "María Pérez", type: "rotativo", pay: "semanal" },
+      data: { id: "student-1", name: "María Pérez", type: "rotativo", pay: "semanal", phone: "5492302666351" },
     });
     view.unmount();
   });

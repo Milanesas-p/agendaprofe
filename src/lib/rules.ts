@@ -30,6 +30,17 @@ export function slots(s: SlotRules): string[] {
   return out;
 }
 
+/** A lesson (one time slot) holds at most this many students. */
+export const MAX_STUDENTS_PER_LESSON = 4;
+
+/**
+ * Whether another student still fits in a slot that already holds
+ * `activeStudents` non-cancelled students. The server enforces this; the client
+ * uses it to hide the "add student" button.
+ */
+export const canAddToLesson = (activeStudents: number): boolean =>
+  Number.isInteger(activeStudents) && activeStudents >= 0 && activeStudents < MAX_STUDENTS_PER_LESSON;
+
 /** A lesson consumes one class only once it was attended or marked absent. */
 export const usedClass = (status: ClassStatus): number =>
   status === "presente" || status === "ausente" ? 1 : 0;

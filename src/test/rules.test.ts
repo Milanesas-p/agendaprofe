@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { balanceDelta, slots, validSettings } from "@/lib/rules";
+import { MAX_STUDENTS_PER_LESSON, balanceDelta, canAddToLesson, slots, validSettings } from "@/lib/rules";
+
+describe("lesson capacity", () => {
+  it("allows up to four students in the same slot", () => {
+    expect(MAX_STUDENTS_PER_LESSON).toBe(4);
+    expect(canAddToLesson(0)).toBe(true);
+    expect(canAddToLesson(3)).toBe(true);
+    expect(canAddToLesson(4)).toBe(false);
+    expect(canAddToLesson(5)).toBe(false);
+  });
+
+  it("rejects a nonsensical count instead of allowing it", () => {
+    expect(canAddToLesson(-1)).toBe(false);
+    expect(canAddToLesson(1.5)).toBe(false);
+  });
+});
 
 describe("balanceDelta", () => {
   it("deducts one class when a lesson is attended", () => {

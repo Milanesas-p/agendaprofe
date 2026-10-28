@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/AppShell";
 import { Sheet } from "@/components/Sheet";
 import { matchesStudent } from "@/lib/agenda";
 import { useStore, balanceLabel, slots, iso, type Student } from "@/lib/store";
+import { canAddToLesson } from "@/lib/rules";
 import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/alumnos")({
@@ -73,13 +74,17 @@ const Tag = ({ children }: { children: React.ReactNode }) => (
 
 function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean }) {
   const { settings, lessons, addLesson } = useStore();
-  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: "mensual", balance: 0 });
+  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: "mensual", phone: null, balance: 0 });
   const [booking, setBooking] = useState(false);
   const [date, setDate] = useState(() => iso(new Date()));
   const [start, setStart] = useState("");
   const [savedId, setSavedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const available = slots(settings).filter(t => !lessons.some(l => l.date === date && l.start === t && l.status !== "cancelada"));
+  // A slot is offered while it still has room for one more student.
+  const available = slots(settings).filter((t) => {
+    const active = lessons.filter((l) => l.date === date && l.start === t && l.status !== "cancelada").length;
+    return canAddToLesson(active);
+  });
   async function save() {
     if (submitting || busy) return;
     setSubmitting(true);
@@ -103,6 +108,7 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
       <div className="space-y-4">
         <fieldset disabled={submitting || busy || Boolean(savedId)} className="space-y-4">
         <input aria-label="Nombre y apellido" placeholder="Nombre y apellido" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="h-14 w-full rounded-xl border-2 border-foreground bg-background px-4 text-lg" />
+        <input type="tel" inputMode="tel" aria-label="Teléfono" placeholder="Teléfono (opcional)" value={f.phone ?? ""} onChange={(e) => setF({ ...f, phone: e.target.value === "" ? null : e.target.value })} className="h-14 w-full rounded-xl border-2 border-foreground bg-background px-4 text-lg" />
         {seg("type", ["fijo", "rotativo"])}
         {seg("pay", ["mensual", "semanal"])}
         {!student && <label className="block font-bold">Clases pagadas (cantidad)

@@ -38,7 +38,7 @@ describe("booking from student form", () => {
     chooseLesson();
     fireEvent.click(screen.getByRole("button", { name: "Guardar y reservar" }));
     await waitFor(() => expect(store.addLesson).toHaveBeenCalledWith({ date: "2026-11-02", start: "09:00", studentId: "student-1" }));
-    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: "mensual", balance: 4 });
+    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: "mensual", phone: null, balance: 4 });
   });
   it("retries a failed booking without creating another student", async () => {
     store.addLesson.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
@@ -50,9 +50,28 @@ describe("booking from student form", () => {
     await waitFor(() => expect(store.addLesson).toHaveBeenCalledTimes(2));
     expect(store.addStudent).toHaveBeenCalledTimes(1);
   });
-  it("does not offer occupied slots on the selected day", () => {
-    store.lessons = [{ date: "2026-11-02", start: "09:00", status: "programada" }];
+  it("still offers a slot that already has students but room for more", () => {
+    store.lessons = [
+      { date: "2026-11-02", start: "09:00", status: "programada" },
+      { date: "2026-11-02", start: "09:00", status: "programada" },
+      { date: "2026-11-02", start: "09:00", status: "programada" },
+    ];
+    openEditor(); chooseLesson();
+    expect(screen.queryByRole("option", { name: "09:00" })).not.toBeNull();
+  });
+  it("does not offer a slot that already has four students", () => {
+    store.lessons = Array.from({ length: 4 }, () => ({ date: "2026-11-02", start: "09:00", status: "programada" }));
     openEditor(); chooseLesson();
     expect(screen.queryByRole("option", { name: "09:00" })).toBeNull();
+  });
+  it("does not count a cancelled student against the four places", () => {
+    store.lessons = [
+      { date: "2026-11-02", start: "09:00", status: "programada" },
+      { date: "2026-11-02", start: "09:00", status: "programada" },
+      { date: "2026-11-02", start: "09:00", status: "programada" },
+      { date: "2026-11-02", start: "09:00", status: "cancelada" },
+    ];
+    openEditor(); chooseLesson();
+    expect(screen.queryByRole("option", { name: "09:00" })).not.toBeNull();
   });
 });

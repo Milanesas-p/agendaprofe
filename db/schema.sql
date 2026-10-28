@@ -8,7 +8,8 @@
 --     it can be tested; a MySQL trigger would duplicate that rule.
 --   * one_active_slot used a partial index (WHERE status <> 'cancelada'). MySQL has
 --     no partial indexes, so it is a STORED generated column + UNIQUE key, which
---     tolerates multiple NULLs (cancelled lessons).
+--     tolerates multiple NULLs (cancelled lessons). The key also carries student_id,
+--     so a slot can hold several students but never the same one twice.
 --   * date/start are reserved words, renamed to lesson_date/start_time.
 
 CREATE TABLE users (
@@ -26,6 +27,8 @@ CREATE TABLE students (
   name       VARCHAR(120) NOT NULL,
   type       VARCHAR(16)  NOT NULL,
   pay        VARCHAR(16)  NOT NULL,
+  -- Optional: needed for the future "message this student on WhatsApp" button.
+  phone      VARCHAR(32)  NULL,
   balance    INT          NOT NULL DEFAULT 0,
   created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -33,6 +36,7 @@ CREATE TABLE students (
   UNIQUE KEY students_owner (id, owner_id),
   KEY students_owner_name (owner_id, name),
   CONSTRAINT students_name_len CHECK (CHAR_LENGTH(TRIM(name)) BETWEEN 1 AND 120),
+  CONSTRAINT students_phone_len CHECK (phone IS NULL OR CHAR_LENGTH(TRIM(phone)) BETWEEN 6 AND 32),
   CONSTRAINT students_type CHECK (type IN ('fijo', 'rotativo')),
   CONSTRAINT students_pay CHECK (pay IN ('mensual', 'semanal')),
   CONSTRAINT students_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
@@ -45,13 +49,16 @@ CREATE TABLE lessons (
   start_time  CHAR(5)      NOT NULL,
   student_id  CHAR(36)     NOT NULL,
   status      VARCHAR(16)  NOT NULL DEFAULT 'programada',
-  -- NULL when cancelled, so the UNIQUE key below only guards active slots.
+  -- NULL when cancelled, so the UNIQUE key below only guards active rows.
   slot_key    VARCHAR(20)  GENERATED ALWAYS AS (
     IF(status = 'cancelada', NULL, CONCAT(lesson_date, '#', start_time))
   ) STORED,
   created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY one_active_slot (owner_id, slot_key),
+  -- A slot holds up to MAX_STUDENTS_PER_LESSON students (enforced by the API), and
+  -- the same student cannot be booked twice into it. Cancelled rows have a NULL
+  -- slot_key, so they never collide.
+  UNIQUE KEY one_active_student_slot (owner_id, slot_key, student_id),
   KEY lessons_owner_date (owner_id, lesson_date),
   CONSTRAINT lessons_start_fmt CHECK (start_time REGEXP '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
   CONSTRAINT lessons_status CHECK (status IN ('programada', 'presente', 'ausente', 'cancelada')),

@@ -3,10 +3,10 @@ import { Sheet } from "@/components/Sheet";
 import { Button } from "@/components/ui/button";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Check, X, Plus, Settings2, Ban, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
-import { SwipeCard } from "@/components/SwipeCard";
-import { useStore, slots, iso, addDays, balanceLabel, type Lesson, validSettings } from "@/lib/store";
+import { canAddToLesson } from "@/lib/rules";
+import { useStore, slots, iso, addDays, balanceLabel, type Lesson, type Student, validSettings } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,11 +30,16 @@ const statusStyle: Record<Lesson["status"], string> = {
   cancelada: "bg-muted border-muted-foreground border-dashed opacity-70",
 };
 
+/** How many different time slots of a day hold at least one active student. */
+const usedSlots = (lessons: Lesson[]) =>
+  new Set(lessons.filter((l) => l.status !== "cancelada").map((l) => l.start)).size;
+
 function Agenda() {
   const { lessons, students, settings, setStatus, addLesson, setSettings, busy } = useStore();
   const [view, setView] = useState<"dia" | "semana">("dia");
   const [day, setDay] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
+  const [acting, setActing] = useState<Lesson | null>(null);
   const [cfg, setCfg] = useState(false);
   const [draft, setDraft] = useState(settings);
   const [weekStart, setWeekStart] = useState("");
@@ -45,6 +50,9 @@ function Agenda() {
   const sOf = (id: string) => students.find((s) => s.id === id);
   const dayLessons = lessons.filter((l) => l.date === day);
   const blocks = slots(settings);
+  const actingStudent = acting ? sOf(acting.studentId) : undefined;
+  // Students already in the class being filled, so they are not offered twice.
+  const alreadyIn = adding ? new Set(dayLessons.filter((l) => l.start === adding).map((l) => l.studentId)) : new Set<string>();
 
   return (
     <>
@@ -70,7 +78,7 @@ function Agenda() {
         <div className="flex gap-2 overflow-x-auto">
           {week.map((d) => {
             const k = iso(d);
-            const n = lessons.filter((l) => l.date === k && l.status !== "cancelada").length;
+            const n = usedSlots(lessons.filter((l) => l.date === k));
             return (
               <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className={`flex h-auto min-w-14 shrink-0 flex-col items-center gap-1 rounded-lg border-2 py-2 ${k === day ? "border-foreground bg-primary text-primary-foreground" : "border-border"}`}>
                 <span className="text-xs font-bold uppercase">{DOW[d.getDay()]}</span>
@@ -84,64 +92,66 @@ function Agenda() {
       </div>
 
       {view === "dia" ? (
-        <ul className="space-y-2 p-4">
+        <ul className="space-y-3 p-4">
           {blocks.map((t) => {
-            const l = dayLessons.find((x) => x.start === t && x.status !== "cancelada") ?? dayLessons.find((x) => x.start === t);
-            if (!l)
+            const ls = dayLessons.filter((x) => x.start === t);
+            if (ls.length === 0) {
               return (
-                <li key={t}>
-                  <Button variant="ghost" onClick={() => { setSearch(""); setAdding(t); }} className="flex h-16 w-full items-center gap-4 rounded-xl border-2 border-dashed border-success/60 bg-success/5 px-4 text-left">
-                    <span className="w-14 font-display text-2xl">{t}</span>
+                <li key={t} className="flex gap-3">
+                  <span className="w-14 shrink-0 pt-4 font-display text-2xl leading-none">{t}</span>
+                  <Button variant="ghost" onClick={() => { setSearch(""); setAdding(t); }} className="flex h-16 flex-1 items-center gap-4 rounded-xl border-2 border-dashed border-success/60 bg-success/5 px-4 text-left">
                     <span className="flex-1 font-semibold text-success">Libre</span>
                     <Plus className="h-6 w-6 text-success" />
                   </Button>
                 </li>
               );
-            const s = sOf(l.studentId);
-            const done = l.status !== "programada";
+            }
+            const active = ls.filter((l) => l.status !== "cancelada").length;
             return (
-              <li key={t}>
-                <SwipeCard disabled={l.status === "cancelada"} onRight={() => setStatus(l.id, "presente")} onLeft={() => setStatus(l.id, "ausente")}>
-                  <div className={`rounded-xl border-2 p-3 ${statusStyle[l.status]}`}>
-                    <div className="flex items-center gap-3">
-                      <span className="w-14 font-display text-2xl">{t}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-lg font-bold">{s?.name}</p>
-                        <p className="text-sm font-semibold uppercase text-muted-foreground">
-                          {l.status} · {s?.type} · saldo {s ? balanceLabel(s.balance) : ""}
-                        </p>
-                      </div>
-                    </div>
-                    {l.status !== "cancelada" && (
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <Button variant="ghost" onClick={() => setStatus(l.id, "presente")} className={`flex h-12 items-center justify-center gap-1 rounded-lg font-bold ${l.status === "presente" ? "bg-success text-success-foreground" : "border-2 border-success text-success"}`}><Check className="h-5 w-5" />Presente</Button>
-                        <Button variant="ghost" onClick={() => setStatus(l.id, "ausente")} className={`flex h-12 items-center justify-center gap-1 rounded-lg font-bold ${l.status === "ausente" ? "bg-destructive text-destructive-foreground" : "border-2 border-destructive text-destructive"}`}><X className="h-5 w-5" />Ausente</Button>
-                        <Button variant="ghost" onClick={() => setStatus(l.id, done ? "programada" : "cancelada")} className="flex h-12 items-center justify-center gap-1 rounded-lg border-2 border-foreground font-bold">{done ? "Deshacer" : <><Ban className="h-4 w-4" />Cancelar</>}</Button>
-                      </div>
-                    )}
-                    {l.status === "cancelada" && (
-                      <div className="mt-2 grid grid-cols-2 gap-2"><Button variant="ghost" onClick={() => setStatus(l.id, "programada")} className="h-11 rounded-lg border-2 border-foreground font-bold">Reactivar</Button><Button variant="outline" className="h-11" onClick={() => { setSearch(""); setAdding(t); }}><Plus />Nueva reserva</Button></div>
+              <li key={t} className="flex gap-3">
+                <span className="w-14 shrink-0 pt-2 font-display text-2xl leading-none">{t}</span>
+                <div className="min-w-0 flex-1 overflow-hidden rounded-xl border-2 border-foreground bg-card">
+                  <div className="flex items-center justify-between gap-2 border-b-2 border-border px-2 py-1">
+                    <span className="pl-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                      {active === 1 ? "1 alumno" : `${active} alumnos`}
+                    </span>
+                    {canAddToLesson(active) && (
+                      <Button variant="ghost" aria-label={`Agregar alumno a las ${t}`} onClick={() => { setSearch(""); setAdding(t); }} className="grid h-8 w-8 place-items-center rounded-full border-2 border-foreground"><Plus className="h-4 w-4" /></Button>
                     )}
                   </div>
-                </SwipeCard>
+                  <ul>
+                    {ls.map((l) => (
+                      <StudentRow key={l.id} lesson={l} student={sOf(l.studentId)} busy={busy} onStatus={setStatus} onActions={setActing} />
+                    ))}
+                  </ul>
+                </div>
               </li>
             );
           })}
-          
         </ul>
       ) : (
         <div className="space-y-4 p-4">
           {week.map((d) => {
             const k = iso(d);
             const ls = lessons.filter((l) => l.date === k).sort((a, b) => a.start.localeCompare(b.start));
+            const starts = [...new Set(ls.map((l) => l.start))].sort();
             return (
               <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className="block h-auto w-full whitespace-normal rounded-lg border-2 border-foreground bg-card p-3 text-left">
-                <span className="block font-display text-2xl">{DOW[d.getDay()]} {d.getDate()} <span className="text-base text-muted-foreground">· {blocks.length - ls.filter((l) => l.status !== "cancelada").length} libres</span></span>
+                <span className="block font-display text-2xl">{DOW[d.getDay()]} {d.getDate()} <span className="text-base text-muted-foreground">· {blocks.length - usedSlots(ls)} libres</span></span>
                 <span className="mt-2 flex flex-wrap gap-1.5">
-                  {ls.length === 0 && <span className="text-sm text-success font-semibold">Todo libre</span>}
-                  {ls.map((l) => (
-                    <span key={l.id} className={`rounded-md border-2 px-2 py-1 text-sm font-bold ${statusStyle[l.status]}`}>{l.start} {sOf(l.studentId)?.name.split(" ")[0]}</span>
-                  ))}
+                  {starts.length === 0 && <span className="text-sm text-success font-semibold">Todo libre</span>}
+                  {starts.map((t) => {
+                    const group = ls.filter((l) => l.start === t);
+                    const active = group.filter((l) => l.status !== "cancelada").length;
+                    const tone = active === 0
+                      ? statusStyle.cancelada
+                      : group.some((l) => l.status === "presente") ? statusStyle.presente
+                        : group.some((l) => l.status === "ausente") ? statusStyle.ausente
+                          : statusStyle.programada;
+                    return (
+                      <span key={t} className={`rounded-md border-2 px-2 py-1 text-sm font-bold ${tone}`}>{t} · {active === 0 ? "cancelada" : `${active} ${active === 1 ? "alumno" : "alumnos"}`}</span>
+                    );
+                  })}
                 </span>
               </Button>
             );
@@ -154,12 +164,20 @@ function Agenda() {
           <div className="space-y-2">
             <input type="search" aria-label="Buscar alumno para reservar" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full rounded-lg border-2 border-border bg-background px-3" />
             {students.length === 0 && <p className="text-muted-foreground">Todavía no hay alumnos.</p>}
-            {students.filter(s => matchesStudent(s.name, search)).map((s) => (
+            {students.filter(s => matchesStudent(s.name, search) && !alreadyIn.has(s.id)).map((s) => (
               <Button variant="ghost" key={s.id} disabled={busy} onClick={async () => { if(await addLesson({ date: day, start: adding, studentId: s.id })) setAdding(null); }} className="flex h-14 w-full items-center justify-between rounded-xl border-2 border-foreground px-4 font-bold">
                 <span className="min-w-0 truncate">{s.name}</span> <span className="font-display text-xl">{balanceLabel(s.balance)}</span>
               </Button>
             ))}
           </div>
+        </Sheet>
+      )}
+      {acting && (
+        <Sheet title={actingStudent?.name ?? "Alumno"} onClose={() => setActing(null)}>
+          <p className="mb-4 text-sm font-bold uppercase text-muted-foreground">{acting.start} · {acting.status}</p>
+          <Button disabled={busy} onClick={async () => { if (await setStatus(acting.id, acting.status === "cancelada" ? "programada" : "cancelada")) setActing(null); }} className="h-12 w-full">
+            {acting.status === "cancelada" ? "Reactivar la clase" : "Cancelar la clase de este alumno"}
+          </Button>
         </Sheet>
       )}
       {cfg && (
@@ -178,6 +196,51 @@ function Agenda() {
   );
 }
 
+/**
+ * One student inside a class. Attendance is a single tap: the active button
+ * returns the lesson to "programada". The balance number is deliberately absent;
+ * a red dot is the only hint that this student owes classes.
+ */
+function StudentRow({ lesson, student, busy, onStatus, onActions }: {
+  lesson: Lesson;
+  student: Student | undefined;
+  busy: boolean;
+  onStatus: (id: string, status: Lesson["status"]) => Promise<boolean>;
+  onActions: (lesson: Lesson) => void;
+}) {
+  const cancelled = lesson.status === "cancelada";
+  const name = student?.name ?? "Alumno";
+  const owes = (student?.balance ?? 0) < 0;
+  const tone = cancelled ? "" : lesson.status === "presente" ? "bg-success/10" : lesson.status === "ausente" ? "bg-destructive/10" : "";
+  const round = "grid h-9 w-9 shrink-0 place-items-center rounded-full";
+
+  return (
+    <li className={`flex items-center gap-1.5 border-b border-border/60 px-2 py-1.5 last:border-b-0 ${tone}`}>
+      <Button
+        variant="ghost"
+        disabled={busy || cancelled}
+        aria-label={`Marcar presente a ${name}`}
+        aria-pressed={lesson.status === "presente"}
+        onClick={() => onStatus(lesson.id, lesson.status === "presente" ? "programada" : "presente")}
+        className={`${round} ${lesson.status === "presente" ? "bg-success text-success-foreground" : "border-2 border-success text-success"}`}
+      ><Check className="h-5 w-5" /></Button>
+      <Button
+        variant="ghost"
+        disabled={busy || cancelled}
+        aria-label={`Marcar ausente a ${name}`}
+        aria-pressed={lesson.status === "ausente"}
+        onClick={() => onStatus(lesson.id, lesson.status === "ausente" ? "programada" : "ausente")}
+        className={`${round} ${lesson.status === "ausente" ? "bg-destructive text-destructive-foreground" : "border-2 border-destructive text-destructive"}`}
+      ><X className="h-5 w-5" /></Button>
+      <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={() => onActions(lesson)} className="flex h-9 min-w-0 flex-1 items-center gap-1.5 px-1 text-left">
+        <span className={`truncate font-bold ${cancelled ? "text-muted-foreground line-through" : ""}`}>{name}</span>
+        {owes && !cancelled && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
+        {cancelled && <span className="shrink-0 text-xs font-bold uppercase text-muted-foreground">cancelada</span>}
+      </Button>
+    </li>
+  );
+}
+
 function Legend() {
   return (
     <div className="flex justify-between text-xs font-bold uppercase">
@@ -188,4 +251,3 @@ function Legend() {
     </div>
   );
 }
-

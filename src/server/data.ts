@@ -3,13 +3,15 @@ import { createServerFn } from "@tanstack/react-start";
 import type { PoolConnection } from "mysql2/promise";
 import { findSessionUser } from "./session-user";
 import { db } from "./db";
-import { balanceDelta, slots, validSettings, type ClassStatus } from "@/lib/rules";
+import { balanceDelta, canAddToLesson, slots, validSettings, MAX_STUDENTS_PER_LESSON, type ClassStatus } from "@/lib/rules";
+import { normalizePhone } from "@/lib/phone";
 
 export type StudentDto = {
   id: string;
   name: string;
   type: "fijo" | "rotativo";
   pay: "mensual" | "semanal";
+  phone: string | null;
   balance: number;
 };
 
@@ -88,7 +90,7 @@ async function readSettings(ownerId: string): Promise<SettingsDto> {
 export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): Promise<Snapshot> => {
   const ownerId = await requireUserId();
   const [studentRows] = await db().execute(
-    "SELECT id, name, type, pay, balance FROM students WHERE owner_id = ? ORDER BY name",
+    "SELECT id, name, type, pay, phone, balance FROM students WHERE owner_id = ? ORDER BY name",
     [ownerId],
   );
   const [lessonRows] = await db().execute(
@@ -100,6 +102,7 @@ export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): P
     name: s.name,
     type: s.type,
     pay: s.pay,
+    phone: s.phone ?? null,
     balance: Number(s.balance),
   }));
   const lessons = (
@@ -121,6 +124,7 @@ export const addStudent = createServerFn({ method: "POST" })
       name: text(raw["name"], "nombre", 120),
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
       pay: oneOf(raw["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
+      phone: normalizePhone(raw["phone"]),
       balance: integer(raw["balance"], "clases pagadas"),
     };
   })
@@ -128,8 +132,8 @@ export const addStudent = createServerFn({ method: "POST" })
     const ownerId = await requireUserId();
     const id = randomUUID();
     await db().execute(
-      "INSERT INTO students (id, owner_id, name, type, pay, balance) VALUES (?, ?, ?, ?, ?, ?)",
-      [id, ownerId, data.name, data.type, data.pay, data.balance],
+      "INSERT INTO students (id, owner_id, name, type, pay, phone, balance) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [id, ownerId, data.name, data.type, data.pay, data.phone, data.balance],
     );
     return id;
   });
@@ -142,6 +146,7 @@ export const updateStudent = createServerFn({ method: "POST" })
       name: text(raw["name"], "nombre", 120),
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
       pay: oneOf(raw["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
+      phone: normalizePhone(raw["phone"]),
     };
   })
   .handler(async ({ data }): Promise<void> => {
@@ -149,8 +154,8 @@ export const updateStudent = createServerFn({ method: "POST" })
     // The balance is deliberately not touchable here: it only moves through
     // attendance or an explicit +/- adjustment.
     const [result] = await db().execute(
-      "UPDATE students SET name = ?, type = ?, pay = ? WHERE id = ? AND owner_id = ?",
-      [data.name, data.type, data.pay, data.id, ownerId],
+      "UPDATE students SET name = ?, type = ?, pay = ?, phone = ? WHERE id = ? AND owner_id = ?",
+      [data.name, data.type, data.pay, data.phone, data.id, ownerId],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) throw new Error("Ese alumno no existe.");
   });
@@ -187,18 +192,36 @@ export const addLesson = createServerFn({ method: "POST" })
       throw new Error("Horario fuera de los bloques configurados.");
     }
     const id = randomUUID();
-    try {
-      // The composite FK (student_id, owner_id) rejects a student from another owner.
-      await db().execute(
-        "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
-        [id, ownerId, data.date, data.start, data.studentId],
+    // Same value the generated `slot_key` column computes for an active row.
+    const slotKey = `${data.date}#${data.start}`;
+
+    await withTransaction(async (connection) => {
+      // Cancelled rows have a NULL slot_key, so this counts only active students.
+      // FOR UPDATE keeps two concurrent adds from both seeing a free fifth place.
+      const [rows] = await connection.execute(
+        "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ? FOR UPDATE",
+        [ownerId, slotKey],
       );
-    } catch (error) {
-      if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
-        throw new Error("Ese horario ya está ocupado.");
+      const active = Number((rows as Array<{ n: number }>)[0]?.n ?? 0);
+      if (!canAddToLesson(active)) {
+        throw new Error(`Esta clase ya tiene ${MAX_STUDENTS_PER_LESSON} alumnos.`);
       }
-      throw error;
-    }
+
+      try {
+        // The composite FK (student_id, owner_id) rejects a student from another
+        // owner; the unique key rejects the same student twice in this slot.
+        await connection.execute(
+          "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
+          [id, ownerId, data.date, data.start, data.studentId],
+        );
+      } catch (error) {
+        if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
+          throw new Error("Ese alumno ya está en esta clase.");
+        }
+        throw error;
+      }
+    });
+
     return id;
   });
 
