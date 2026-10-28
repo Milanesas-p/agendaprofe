@@ -1,7 +1,8 @@
+import { weekStartFor, matchesStudent } from "@/lib/agenda";
 import { Sheet } from "@/components/Sheet";
 import { Button } from "@/components/ui/button";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, X, Plus, Settings2, Ban, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { SwipeCard } from "@/components/SwipeCard";
@@ -30,14 +31,17 @@ const statusStyle: Record<Lesson["status"], string> = {
 };
 
 function Agenda() {
-  const { lessons, students, settings, setStatus, addLesson, setSettings } = useStore();
+  const { lessons, students, settings, setStatus, addLesson, setSettings, busy } = useStore();
   const [view, setView] = useState<"dia" | "semana">("dia");
-  const [day, setDay] = useState(() => iso(new Date()));
+  const [day, setDay] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
   const [cfg, setCfg] = useState(false);
   const [draft, setDraft] = useState(settings);
-  const [weekStart, setWeekStart] = useState(() => iso(addDays(new Date(), -1)));
-  const week = Array.from({ length: 7 }, (_, i) => addDays(new Date(weekStart + "T12:00:00"), i));
+  const [weekStart, setWeekStart] = useState("");
+  const [search, setSearch] = useState("");
+  useEffect(() => { const today = iso(new Date()); setDay(today); setWeekStart(weekStartFor(today)); }, []);
+  const selectDate = (date: string) => { setDay(date); setWeekStart(weekStartFor(date)); };
+  const week = weekStart ? Array.from({ length: 7 }, (_, i) => addDays(new Date(weekStart + "T12:00:00"), i)) : [];
   const sOf = (id: string) => students.find((s) => s.id === id);
   const dayLessons = lessons.filter((l) => l.date === day);
   const blocks = slots(settings);
@@ -61,7 +65,8 @@ function Agenda() {
             </Button>
           ))}
         </div>
-        <div className="flex items-center justify-between"><Button variant="ghost" aria-label="Semana anterior" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), -7)); setWeekStart(k); setDay(k); }}><ChevronLeft /></Button><span className="text-sm font-bold">{new Date(day + "T12:00:00").toLocaleDateString("es-AR", { month: "long", year: "numeric" })}</span><Button variant="ghost" aria-label="Semana siguiente" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), 7)); setWeekStart(k); setDay(k); }}><ChevronRight /></Button></div>
+        <div className="flex items-center justify-between"><Button variant="ghost" aria-label="Semana anterior" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), -7)); setWeekStart(k); setDay(k); }}><ChevronLeft /></Button><span className="text-sm font-bold">{day ? new Date(day + "T12:00:00").toLocaleDateString("es-AR", { month: "long", year: "numeric" }) : "Agenda"}</span><Button variant="ghost" aria-label="Semana siguiente" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), 7)); setWeekStart(k); setDay(k); }}><ChevronRight /></Button></div>
+        <div className="flex items-center gap-2"><input type="date" aria-label="Fecha de la agenda" value={day} onChange={e => { if(e.target.value) selectDate(e.target.value); }} className="h-10 min-w-0 flex-1 rounded-lg border-2 border-border bg-background px-3 font-semibold" /><Button variant="outline" onClick={() => selectDate(iso(new Date()))}>Hoy</Button></div>
         <div className="flex gap-2 overflow-x-auto">
           {week.map((d) => {
             const k = iso(d);
@@ -85,7 +90,7 @@ function Agenda() {
             if (!l)
               return (
                 <li key={t}>
-                  <Button variant="ghost" onClick={() => setAdding(t)} className="flex h-16 w-full items-center gap-4 rounded-xl border-2 border-dashed border-success/60 bg-success/5 px-4 text-left">
+                  <Button variant="ghost" onClick={() => { setSearch(""); setAdding(t); }} className="flex h-16 w-full items-center gap-4 rounded-xl border-2 border-dashed border-success/60 bg-success/5 px-4 text-left">
                     <span className="w-14 font-display text-2xl">{t}</span>
                     <span className="flex-1 font-semibold text-success">Libre</span>
                     <Plus className="h-6 w-6 text-success" />
@@ -115,7 +120,7 @@ function Agenda() {
                       </div>
                     )}
                     {l.status === "cancelada" && (
-                      <div className="mt-2 grid grid-cols-2 gap-2"><Button variant="ghost" onClick={() => setStatus(l.id, "programada")} className="h-11 rounded-lg border-2 border-foreground font-bold">Reactivar</Button><Button variant="outline" className="h-11" onClick={() => setAdding(t)}><Plus />Nueva reserva</Button></div>
+                      <div className="mt-2 grid grid-cols-2 gap-2"><Button variant="ghost" onClick={() => setStatus(l.id, "programada")} className="h-11 rounded-lg border-2 border-foreground font-bold">Reactivar</Button><Button variant="outline" className="h-11" onClick={() => { setSearch(""); setAdding(t); }}><Plus />Nueva reserva</Button></div>
                     )}
                   </div>
                 </SwipeCard>
@@ -130,14 +135,14 @@ function Agenda() {
             const k = iso(d);
             const ls = lessons.filter((l) => l.date === k).sort((a, b) => a.start.localeCompare(b.start));
             return (
-              <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className="block w-full rounded-xl border-2 border-foreground bg-card p-3 text-left">
-                <p className="font-display text-2xl">{DOW[d.getDay()]} {d.getDate()} <span className="text-base text-muted-foreground">· {blocks.length - ls.filter((l) => l.status !== "cancelada").length} libres</span></p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
+              <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className="block h-auto w-full whitespace-normal rounded-lg border-2 border-foreground bg-card p-3 text-left">
+                <span className="block font-display text-2xl">{DOW[d.getDay()]} {d.getDate()} <span className="text-base text-muted-foreground">· {blocks.length - ls.filter((l) => l.status !== "cancelada").length} libres</span></span>
+                <span className="mt-2 flex flex-wrap gap-1.5">
                   {ls.length === 0 && <span className="text-sm text-success font-semibold">Todo libre</span>}
                   {ls.map((l) => (
                     <span key={l.id} className={`rounded-md border-2 px-2 py-1 text-sm font-bold ${statusStyle[l.status]}`}>{l.start} {sOf(l.studentId)?.name.split(" ")[0]}</span>
                   ))}
-                </div>
+                </span>
               </Button>
             );
           })}
@@ -147,10 +152,11 @@ function Agenda() {
       {adding && (
         <Sheet onClose={() => setAdding(null)} title={`Reservar ${adding}`}>
           <div className="space-y-2">
+            <input type="search" aria-label="Buscar alumno para reservar" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full rounded-lg border-2 border-border bg-background px-3" />
             {students.length === 0 && <p className="text-muted-foreground">Todavía no hay alumnos.</p>}
-            {students.map((s) => (
-              <Button variant="ghost" key={s.id} onClick={() => { addLesson({ date: day, start: adding, studentId: s.id }); setAdding(null); }} className="flex h-14 w-full items-center justify-between rounded-xl border-2 border-foreground px-4 font-bold">
-                {s.name} <span className="font-display text-xl">{balanceLabel(s.balance)}</span>
+            {students.filter(s => matchesStudent(s.name, search)).map((s) => (
+              <Button variant="ghost" key={s.id} disabled={busy} onClick={async () => { if(await addLesson({ date: day, start: adding, studentId: s.id })) setAdding(null); }} className="flex h-14 w-full items-center justify-between rounded-xl border-2 border-foreground px-4 font-bold">
+                <span className="min-w-0 truncate">{s.name}</span> <span className="font-display text-xl">{balanceLabel(s.balance)}</span>
               </Button>
             ))}
           </div>
@@ -165,7 +171,7 @@ function Agenda() {
             </label>
           ))}
           {!validSettings(draft) && <p role="alert" className="text-destructive">Revisá las horas y la duración: entre 15 y 240 minutos.</p>}
-          <Button disabled={!validSettings(draft)} className="mt-3 h-12 w-full" onClick={() => { setSettings(draft); setCfg(false); }}>Guardar horarios</Button>
+          <Button disabled={busy || !validSettings(draft)} className="mt-3 h-12 w-full" onClick={async () => { if(await setSettings(draft)) setCfg(false); }}>Guardar horarios</Button>
         </Sheet>
       )}
     </>
