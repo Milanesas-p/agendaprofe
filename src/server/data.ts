@@ -5,6 +5,7 @@ import { findSessionUser } from "./session-user";
 import { db } from "./db";
 import { balanceDelta, canAddToLesson, slots, validSettings, MAX_STUDENTS_PER_LESSON, type ClassStatus } from "@/lib/rules";
 import { normalizePhone } from "@/lib/phone";
+import { datesToGenerate } from "@/lib/recurrence";
 
 export type StudentDto = {
   id: string;
@@ -12,8 +13,16 @@ export type StudentDto = {
   type: "fijo" | "rotativo";
   pay: "mensual" | "semanal";
   phone: string | null;
+  /** Weekly fixed slot, or null when the student has none. 0 = Sunday. */
+  recurringWeekday: number | null;
+  recurringTime: string | null;
   balance: number;
 };
+
+/** A weekly occurrence that could not be created, so the teacher can react. */
+export type RecurringConflict = { studentId: string; studentName: string; date: string; time: string };
+
+export type MaterializeResult = { created: number; conflicts: RecurringConflict[] };
 
 export type LessonDto = {
   id: string;
@@ -72,6 +81,25 @@ function integer(value: unknown, field: string): number {
   return value;
 }
 
+/**
+ * Reads the optional weekly slot. Weekday and time go together: either both are
+ * present or the student has no fixed schedule.
+ */
+function recurringSlot(input: Record<string, unknown>): { weekday: number | null; time: string | null } {
+  const weekday = input["recurringWeekday"];
+  const time = input["recurringTime"];
+  const noWeekday = weekday === null || weekday === undefined;
+  const noTime = time === null || time === undefined;
+
+  if (noWeekday && noTime) return { weekday: null, time: null };
+  if (noWeekday || noTime) throw new Error("El horario fijo necesita día y hora.");
+  if (typeof weekday !== "number" || !Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+    throw new Error("Día de la semana inválido.");
+  }
+  if (typeof time !== "string" || !TIME_PATTERN.test(time)) throw new Error("Horario inválido.");
+  return { weekday, time };
+}
+
 function rowId(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-fA-F-]{36}$/.test(value)) throw new Error("Identificador inválido.");
   return value;
@@ -90,7 +118,7 @@ async function readSettings(ownerId: string): Promise<SettingsDto> {
 export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): Promise<Snapshot> => {
   const ownerId = await requireUserId();
   const [studentRows] = await db().execute(
-    "SELECT id, name, type, pay, phone, balance FROM students WHERE owner_id = ? ORDER BY name",
+    "SELECT id, name, type, pay, phone, recurring_weekday, recurring_time, balance FROM students WHERE owner_id = ? ORDER BY name",
     [ownerId],
   );
   const [lessonRows] = await db().execute(
@@ -103,6 +131,8 @@ export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): P
     type: s.type,
     pay: s.pay,
     phone: s.phone ?? null,
+    recurringWeekday: s.recurringWeekday === null || s.recurringWeekday === undefined ? null : Number(s.recurringWeekday),
+    recurringTime: s.recurringTime ?? null,
     balance: Number(s.balance),
   }));
   const lessons = (
@@ -125,6 +155,7 @@ export const addStudent = createServerFn({ method: "POST" })
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
       pay: oneOf(raw["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
       phone: normalizePhone(raw["phone"]),
+      ...recurringSlot(raw),
       balance: integer(raw["balance"], "clases pagadas"),
     };
   })
@@ -132,8 +163,8 @@ export const addStudent = createServerFn({ method: "POST" })
     const ownerId = await requireUserId();
     const id = randomUUID();
     await db().execute(
-      "INSERT INTO students (id, owner_id, name, type, pay, phone, balance) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [id, ownerId, data.name, data.type, data.pay, data.phone, data.balance],
+      "INSERT INTO students (id, owner_id, name, type, pay, phone, recurring_weekday, recurring_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [id, ownerId, data.name, data.type, data.pay, data.phone, data.weekday, data.time, data.balance],
     );
     return id;
   });
@@ -147,15 +178,17 @@ export const updateStudent = createServerFn({ method: "POST" })
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
       pay: oneOf(raw["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
       phone: normalizePhone(raw["phone"]),
+      ...recurringSlot(raw),
     };
   })
   .handler(async ({ data }): Promise<void> => {
     const ownerId = await requireUserId();
     // The balance is deliberately not touchable here: it only moves through
-    // attendance or an explicit +/- adjustment.
+    // attendance or an explicit +/- adjustment. Changing the weekly slot is not
+    // retroactive: occurrences already created stay where they are.
     const [result] = await db().execute(
-      "UPDATE students SET name = ?, type = ?, pay = ?, phone = ? WHERE id = ? AND owner_id = ?",
-      [data.name, data.type, data.pay, data.phone, data.id, ownerId],
+      "UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, recurring_weekday = ?, recurring_time = ? WHERE id = ? AND owner_id = ?",
+      [data.name, data.type, data.pay, data.phone, data.weekday, data.time, data.id, ownerId],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) throw new Error("Ese alumno no existe.");
   });
@@ -252,6 +285,144 @@ export const setLessonStatus = createServerFn({ method: "POST" })
           [delta, row.student_id, ownerId],
         );
       }
+    });
+  });
+
+/**
+ * Tops up every student's weekly slot up to the horizon.
+ *
+ * Idempotent and monotonic: it only looks at dates after each student's
+ * `recurring_last_date`, so an occurrence the teacher already moved or cancelled
+ * is never recreated. A slot that is already full stops that student's top-up and
+ * is reported, never swallowed.
+ */
+export const materializeRecurring = createServerFn({ method: "POST" }).handler(
+  async (): Promise<MaterializeResult> => {
+    const ownerId = await requireUserId();
+    const now = new Date();
+    const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const allowed = slots(await readSettings(ownerId));
+
+    const [rows] = await db().execute(
+      "SELECT id, name, recurring_weekday, recurring_time, recurring_last_date FROM students WHERE owner_id = ? AND recurring_weekday IS NOT NULL",
+      [ownerId],
+    );
+    const series = rows as Array<{
+      id: string;
+      name: string;
+      recurring_weekday: number;
+      recurring_time: string;
+      recurring_last_date: string | null;
+    }>;
+    if (series.length === 0) return { created: 0, conflicts: [] };
+
+    let created = 0;
+    const conflicts: RecurringConflict[] = [];
+
+    await withTransaction(async (connection) => {
+      for (const student of series) {
+        const weekday = Number(student.recurring_weekday);
+        const time = student.recurring_time;
+
+        if (!allowed.includes(time)) {
+          // The blocks were reconfigured under the series; report instead of guessing.
+          conflicts.push({ studentId: student.id, studentName: student.name, date: today, time });
+          continue;
+        }
+
+        let resolved: string | null = null;
+        for (const date of datesToGenerate(weekday, student.recurring_last_date, today)) {
+          // Any row means this occurrence was already handled, moved or cancelled.
+          const [existing] = await connection.execute(
+            "SELECT id FROM lessons WHERE owner_id = ? AND student_id = ? AND lesson_date = ? AND start_time = ?",
+            [ownerId, student.id, date, time],
+          );
+          if ((existing as unknown[]).length > 0) {
+            resolved = date;
+            continue;
+          }
+
+          const [countRows] = await connection.execute(
+            "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ?",
+            [ownerId, `${date}#${time}`],
+          );
+          const active = Number((countRows as Array<{ n: number }>)[0]?.n ?? 0);
+          if (!canAddToLesson(active)) {
+            // Stop here so the week stays pending and the warning repeats.
+            conflicts.push({ studentId: student.id, studentName: student.name, date, time });
+            break;
+          }
+
+          await connection.execute(
+            "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
+            [randomUUID(), ownerId, date, time, student.id],
+          );
+          created += 1;
+          resolved = date;
+        }
+
+        if (resolved && resolved !== student.recurring_last_date) {
+          await connection.execute(
+            "UPDATE students SET recurring_last_date = ? WHERE id = ? AND owner_id = ?",
+            [resolved, student.id, ownerId],
+          );
+        }
+      }
+    });
+
+    return { created, conflicts };
+  },
+);
+
+/**
+ * Relocates one occurrence. The original slot is genuinely released, so another
+ * student can take it; the weekly series and the balance are untouched.
+ */
+export const moveLesson = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const raw = (input ?? {}) as Record<string, unknown>;
+    const date = raw["date"];
+    const start = raw["start"];
+    if (typeof date !== "string" || !DATE_PATTERN.test(date)) throw new Error("Fecha inválida.");
+    if (typeof start !== "string" || !TIME_PATTERN.test(start)) throw new Error("Horario inválido.");
+    return { id: rowId(raw["id"]), date, start };
+  })
+  .handler(async ({ data }): Promise<void> => {
+    const ownerId = await requireUserId();
+    const allowed = slots(await readSettings(ownerId));
+    if (!allowed.includes(data.start)) throw new Error("Horario fuera de los bloques configurados.");
+
+    await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(
+        "SELECT lesson_date, start_time, student_id, status FROM lessons WHERE id = ? AND owner_id = ? FOR UPDATE",
+        [data.id, ownerId],
+      );
+      const lesson = (rows as Array<{ lesson_date: string; start_time: string; student_id: string; status: ClassStatus }>)[0];
+      if (!lesson) throw new Error("Esa clase no existe.");
+      if (lesson.status !== "programada") {
+        throw new Error("Primero deshacé la asistencia para poder moverla.");
+      }
+      if (lesson.lesson_date === data.date && lesson.start_time === data.start) return;
+
+      const [duplicate] = await connection.execute(
+        "SELECT id FROM lessons WHERE owner_id = ? AND student_id = ? AND lesson_date = ? AND start_time = ? AND status <> 'cancelada' AND id <> ?",
+        [ownerId, lesson.student_id, data.date, data.start, data.id],
+      );
+      if ((duplicate as unknown[]).length > 0) throw new Error("Ese alumno ya está en ese horario.");
+
+      const [countRows] = await connection.execute(
+        "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ?",
+        [ownerId, `${data.date}#${data.start}`],
+      );
+      const active = Number((countRows as Array<{ n: number }>)[0]?.n ?? 0);
+      if (!canAddToLesson(active)) {
+        throw new Error(`Esa clase ya tiene ${MAX_STUDENTS_PER_LESSON} alumnos.`);
+      }
+
+      await connection.execute(
+        "UPDATE lessons SET lesson_date = ?, start_time = ? WHERE id = ? AND owner_id = ?",
+        [data.date, data.start, data.id, ownerId],
+      );
     });
   });
 

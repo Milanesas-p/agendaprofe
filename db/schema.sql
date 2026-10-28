@@ -29,6 +29,12 @@ CREATE TABLE students (
   pay        VARCHAR(16)  NOT NULL,
   -- Optional: needed for the future "message this student on WhatsApp" button.
   phone      VARCHAR(32)  NULL,
+  -- Weekly fixed slot, optional. weekday: 0=Sunday .. 6=Saturday.
+  -- last_date is the last date already resolved, so generation only ever moves
+  -- forward and a moved or cancelled occurrence can never be regenerated.
+  recurring_weekday   TINYINT NULL,
+  recurring_time      CHAR(5) NULL,
+  recurring_last_date DATE    NULL,
   balance    INT          NOT NULL DEFAULT 0,
   created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -37,6 +43,11 @@ CREATE TABLE students (
   KEY students_owner_name (owner_id, name),
   CONSTRAINT students_name_len CHECK (CHAR_LENGTH(TRIM(name)) BETWEEN 1 AND 120),
   CONSTRAINT students_phone_len CHECK (phone IS NULL OR CHAR_LENGTH(TRIM(phone)) BETWEEN 6 AND 32),
+  CONSTRAINT students_recurring_pair CHECK (
+    (recurring_weekday IS NULL AND recurring_time IS NULL)
+    OR (recurring_weekday BETWEEN 0 AND 6
+        AND recurring_time REGEXP '^([01][0-9]|2[0-3]):[0-5][0-9]$')
+  ),
   CONSTRAINT students_type CHECK (type IN ('fijo', 'rotativo')),
   CONSTRAINT students_pay CHECK (pay IN ('mensual', 'semanal')),
   CONSTRAINT students_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE

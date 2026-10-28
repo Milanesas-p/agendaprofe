@@ -35,11 +35,14 @@ const usedSlots = (lessons: Lesson[]) =>
   new Set(lessons.filter((l) => l.status !== "cancelada").map((l) => l.start)).size;
 
 function Agenda() {
-  const { lessons, students, settings, setStatus, addLesson, setSettings, busy } = useStore();
+  const { lessons, students, settings, setStatus, addLesson, moveLesson, setSettings, busy } = useStore();
   const [view, setView] = useState<"dia" | "semana">("dia");
   const [day, setDay] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
   const [acting, setActing] = useState<Lesson | null>(null);
+  const [moving, setMoving] = useState(false);
+  const [moveDate, setMoveDate] = useState("");
+  const [moveStart, setMoveStart] = useState("");
   const [cfg, setCfg] = useState(false);
   const [draft, setDraft] = useState(settings);
   const [weekStart, setWeekStart] = useState("");
@@ -51,6 +54,20 @@ function Agenda() {
   const dayLessons = lessons.filter((l) => l.date === day);
   const blocks = slots(settings);
   const actingStudent = acting ? sOf(acting.studentId) : undefined;
+  // Target slots for a move: within the blocks, with room, and not a slot this
+  // student already has that day.
+  const moveSlots = acting && moveDate
+    ? slots(settings).filter((t) => {
+      const taken = lessons.filter((l) => l.date === moveDate && l.start === t && l.status !== "cancelada" && l.id !== acting.id);
+      return canAddToLesson(taken.length) && !taken.some((l) => l.studentId === acting.studentId);
+    })
+    : [];
+  const openActions = (lesson: Lesson) => {
+    setActing(lesson);
+    setMoving(false);
+    setMoveDate(lesson.date);
+    setMoveStart("");
+  };
   // Students already in the class being filled, so they are not offered twice.
   const alreadyIn = adding ? new Set(dayLessons.filter((l) => l.start === adding).map((l) => l.studentId)) : new Set<string>();
 
@@ -121,7 +138,7 @@ function Agenda() {
                   </div>
                   <ul>
                     {ls.map((l) => (
-                      <StudentRow key={l.id} lesson={l} student={sOf(l.studentId)} busy={busy} onStatus={setStatus} onActions={setActing} />
+                      <StudentRow key={l.id} lesson={l} student={sOf(l.studentId)} busy={busy} onStatus={setStatus} onActions={openActions} />
                     ))}
                   </ul>
                 </div>
@@ -173,11 +190,33 @@ function Agenda() {
         </Sheet>
       )}
       {acting && (
-        <Sheet title={actingStudent?.name ?? "Alumno"} onClose={() => setActing(null)}>
-          <p className="mb-4 text-sm font-bold uppercase text-muted-foreground">{acting.start} · {acting.status}</p>
-          <Button disabled={busy} onClick={async () => { if (await setStatus(acting.id, acting.status === "cancelada" ? "programada" : "cancelada")) setActing(null); }} className="h-12 w-full">
-            {acting.status === "cancelada" ? "Reactivar la clase" : "Cancelar la clase de este alumno"}
-          </Button>
+        <Sheet title={actingStudent?.name ?? "Alumno"} onClose={() => { setActing(null); setMoving(false); }}>
+          <p className="mb-4 text-sm font-bold uppercase text-muted-foreground">{acting.date} · {acting.start} · {acting.status}</p>
+          {moving ? (
+            <div className="space-y-3">
+              <label className="block font-bold">Nuevo día
+                <input type="date" aria-label="Nuevo día de la clase" value={moveDate} onChange={(e) => { setMoveDate(e.target.value); setMoveStart(""); }} className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3" />
+              </label>
+              <label className="block font-bold">Horario libre
+                <select aria-label="Nuevo horario de la clase" value={moveStart} onChange={(e) => setMoveStart(e.target.value)} className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3">
+                  <option value="">Elegir horario</option>
+                  {moveSlots.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              {moveSlots.length === 0 && <p role="status" className="text-sm text-destructive">No hay horarios libres ese día.</p>}
+              <Button disabled={busy || !moveDate || !moveStart} onClick={async () => { if (await moveLesson(acting.id, { date: moveDate, start: moveStart })) { setActing(null); setMoving(false); } }} className="h-12 w-full">Mover la clase</Button>
+              <Button variant="outline" onClick={() => setMoving(false)} className="h-11 w-full">Volver</Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {acting.status === "programada" && (
+                <Button variant="outline" onClick={() => setMoving(true)} className="h-12 w-full">Mover esta clase</Button>
+              )}
+              <Button disabled={busy} onClick={async () => { if (await setStatus(acting.id, acting.status === "cancelada" ? "programada" : "cancelada")) setActing(null); }} className="h-12 w-full">
+                {acting.status === "cancelada" ? "Reactivar la clase" : "Cancelar la clase de este alumno"}
+              </Button>
+            </div>
+          )}
         </Sheet>
       )}
       {cfg && (

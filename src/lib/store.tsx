@@ -5,6 +5,8 @@ import {
   addLesson as addLessonFn,
   addStudent as addStudentFn,
   getSnapshot,
+  materializeRecurring as materializeRecurringFn,
+  moveLesson as moveLessonFn,
   saveSettings as saveSettingsFn,
   setLessonStatus as setLessonStatusFn,
   updateStudent as updateStudentFn,
@@ -17,7 +19,17 @@ export type { ClassStatus };
 
 export type StudentType = "fijo" | "rotativo";
 export type PayMode = "mensual" | "semanal";
-export type Student = { id: string; name: string; type: StudentType; pay: PayMode; phone: string | null; balance: number };
+export type Student = {
+  id: string;
+  name: string;
+  type: StudentType;
+  pay: PayMode;
+  phone: string | null;
+  /** Weekly fixed slot: 0 = Sunday, or null when the student has none. */
+  recurringWeekday: number | null;
+  recurringTime: string | null;
+  balance: number;
+};
 export type Lesson = { id: string; date: string; start: string; studentId: string; status: ClassStatus };
 export type Settings = { startHour: number; endHour: number; blockMin: number };
 export const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -37,8 +49,9 @@ type Ctx = State & {
   setStatus: (id: string, s: ClassStatus) => Promise<boolean>;
   addLesson: (l: Omit<Lesson, "id" | "status">) => Promise<boolean>;
   addStudent: (s: Omit<Student, "id">) => Promise<string | false>;
-  updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay" | "phone">) => Promise<boolean>;
+  updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay" | "phone" | "recurringWeekday" | "recurringTime">) => Promise<boolean>;
   adjustBalance: (id: string, delta: number) => Promise<boolean>;
+  moveLesson: (id: string, target: { date: string; start: string }) => Promise<boolean>;
   setSettings: (s: Settings) => Promise<boolean>;
 };
 
@@ -71,10 +84,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) { setSt(empty); return; }
+    let active = true;
     setLoading(true);
-    refresh()
-      .catch(() => toast.error("No pudimos cargar tus datos. Volvé a intentar."))
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        // Tops up the weekly slots before the first snapshot, so the agenda never
+        // flashes without the classes that are about to exist.
+        const result = await materializeRecurringFn();
+        if (active && result.conflicts.length > 0) {
+          const first = result.conflicts[0]!;
+          toast.error(
+            result.conflicts.length === 1
+              ? `No se pudo agendar a ${first.studentName} el ${first.date} a las ${first.time}: la clase está llena.`
+              : `${result.conflicts.length} clases fijas quedaron sin agendar porque el horario está lleno.`,
+          );
+        }
+      } catch {
+        if (active) toast.error("No pudimos completar las clases fijas.");
+      }
+      try {
+        if (active) await refresh();
+      } catch {
+        if (active) toast.error("No pudimos cargar tus datos. Volvé a intentar.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
   }, [user?.id]);
 
   /** Serializes mutations, refreshes afterwards, and turns errors into toasts. */
@@ -98,6 +134,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const changed = async (work: () => Promise<unknown>, fallback: string): Promise<boolean> =>
     (await commit(work, fallback)) !== false;
+
+  /** Tops up the weekly slots after a schedule change, so it shows up immediately. */
+  async function afterScheduleChange() {
+    try {
+      await materializeRecurringFn();
+    } catch {
+      // The next app load retries; never lose the student because of this.
+    }
+  }
 
   async function signIn(email: string, password: string): Promise<string | null> {
     try {
@@ -123,15 +168,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     addStudent: async (s) => {
       const result = await commit(
-        () => addStudentFn({ data: { name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, balance: s.balance } }),
+        async () => {
+          const id = await addStudentFn({ data: { name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, recurringWeekday: s.recurringWeekday, recurringTime: s.recurringTime, balance: s.balance } });
+          if (s.recurringWeekday !== null && s.recurringTime !== null) await afterScheduleChange();
+          return id;
+        },
         "No se pudo guardar el alumno.",
       );
       return typeof result === "string" ? result : false;
     },
     updateStudent: (id, s) =>
-      changed(() => updateStudentFn({ data: { id, name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone } }), "No se pudo guardar el alumno."),
+      changed(async () => {
+        await updateStudentFn({ data: { id, name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, recurringWeekday: s.recurringWeekday, recurringTime: s.recurringTime } });
+        if (s.recurringWeekday !== null && s.recurringTime !== null) await afterScheduleChange();
+      }, "No se pudo guardar el alumno."),
     adjustBalance: (id, delta) =>
       changed(() => adjustBalanceFn({ data: { id, delta } }), "No se pudo ajustar el saldo."),
+    moveLesson: (id, target) =>
+      changed(() => moveLessonFn({ data: { id, date: target.date, start: target.start } }), "No se pudo mover la clase."),
     setSettings: async (s) => {
       if (!validSettings(s) || !user) return false;
       if (st.lessons.some((l) => l.status !== "cancelada" && !slots(s).includes(l.start))) {

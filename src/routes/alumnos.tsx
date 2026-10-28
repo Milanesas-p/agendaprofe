@@ -68,13 +68,15 @@ function Alumnos() {
   );
 }
 
+const DOW = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
 const Tag = ({ children }: { children: React.ReactNode }) => (
   <span className="rounded-md bg-court px-2 py-0.5 text-xs font-bold uppercase text-court-foreground">{children}</span>
 );
 
 function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean }) {
   const { settings, lessons, addLesson } = useStore();
-  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: "mensual", phone: null, balance: 0 });
+  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: "mensual", phone: null, recurringWeekday: null, recurringTime: null, balance: 0 });
   const [booking, setBooking] = useState(false);
   const [date, setDate] = useState(() => iso(new Date()));
   const [start, setStart] = useState("");
@@ -114,6 +116,35 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
         {!student && <label className="block font-bold">Clases pagadas (cantidad)
           <input type="number" value={f.balance} onChange={(e) => setF({ ...f, balance: Number(e.target.value) || 0 })} className="mt-1 h-14 w-full rounded-xl border-2 border-foreground bg-background px-4 text-lg" />
         </label>}
+        <div className="space-y-2 border-t-2 border-border pt-4">
+          <p className="font-bold">Horario fijo (semanal)</p>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block font-bold">Día
+              <select
+                aria-label="Día del horario fijo"
+                value={f.recurringWeekday ?? ""}
+                onChange={(e) => setF({ ...f, recurringWeekday: e.target.value === "" ? null : Number(e.target.value), recurringTime: e.target.value === "" ? null : f.recurringTime })}
+                className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3"
+              >
+                <option value="">Sin horario fijo</option>
+                {DOW.map((day, index) => <option key={day} value={index}>{day}</option>)}
+              </select>
+            </label>
+            <label className="block font-bold">Hora
+              <select
+                aria-label="Hora del horario fijo"
+                value={f.recurringTime ?? ""}
+                disabled={f.recurringWeekday === null}
+                onChange={(e) => setF({ ...f, recurringTime: e.target.value === "" ? null : e.target.value })}
+                className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3 disabled:opacity-50"
+              >
+                <option value="">Elegir hora</option>
+                {slots(settings).map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground">Se agenda solo las próximas 4 semanas. Mover una clase puntual no cambia el horario.</p>
+        </div>
         </fieldset>
         <div className="flex items-center justify-between gap-3 border-t-2 border-border pt-4"><label htmlFor="student-booking" className="font-bold">Agregar clase a la agenda</label><Switch id="student-booking" checked={booking} disabled={submitting || busy} onCheckedChange={setBooking} /></div>
         {booking && <div className="space-y-3">
@@ -122,7 +153,7 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
           {available.length === 0 && <p role="status" className="text-sm text-destructive">No hay horarios libres para este día.</p>}
         </div>}
         {savedId && <p role="status" className="text-sm text-muted-foreground">Alumno guardado. Falta confirmar la reserva.</p>}
-        <Button variant="ghost" disabled={submitting || busy || !f.name.trim() || (booking && (!date || !available.includes(start)))} onClick={save} className="h-14 w-full rounded-xl bg-primary font-display text-2xl text-primary-foreground disabled:opacity-40">{submitting || busy ? "Guardando…" : booking ? "Guardar y reservar" : "Guardar"}</Button>
+        <Button variant="ghost" disabled={submitting || busy || !f.name.trim() || (f.recurringWeekday !== null && f.recurringTime === null) || (booking && (!date || !available.includes(start)))} onClick={save} className="h-14 w-full rounded-xl bg-primary font-display text-2xl text-primary-foreground disabled:opacity-40">{submitting || busy ? "Guardando…" : booking ? "Guardar y reservar" : "Guardar"}</Button>
       </div>
     </Sheet>
   );
