@@ -86,3 +86,11 @@ CREATE TABLE sessions (
   KEY sessions_expiry (expires_at),
   CONSTRAINT sessions_user_fk FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Housekeeping: expired sessions are already invisible to every query (they all
+-- filter on `expires_at > NOW()`), so this only keeps the table small.
+-- Requires `event_scheduler=ON`, a server-wide setting that is not carried by this
+-- file. If the scheduler is off the event silently does nothing, which is harmless.
+CREATE EVENT IF NOT EXISTS purge_expired_sessions
+  ON SCHEDULE EVERY 1 DAY
+  DO DELETE FROM sessions WHERE expires_at < NOW();

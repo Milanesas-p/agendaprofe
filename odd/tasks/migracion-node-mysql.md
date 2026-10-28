@@ -26,6 +26,7 @@ Branch: `main` (sin push a remoto hasta que el usuario lo decida). Runner: `npm 
 | T8 | Reescribir `store.tsx` y `Account.tsx` contra la API propia | S3, S4 | hecho · sin Supabase en el cliente |
 | T9 | Borrar `src/integrations/supabase/*`, `supabase/`, `.env` viejo | S2 | hecho · 0 referencias a supabase/lovable/drizzle |
 | T10 | Verificación end-to-end local | S3 | hecho · registro, alta de alumno, reserva y presente con descuento de saldo, probado por el usuario |
+| T11 | Purga automática de sesiones vencidas | S4 | hecho · `EVENT purge_expired_sessions` diario en `db/schema.sql`, verificado con un evento temporal de 1 s |
 
 ## Log
 
@@ -35,3 +36,4 @@ Branch: `main` (sin push a remoto hasta que el usuario lo decida). Runner: `npm 
 - **L4** — *"vamos con S0 primero"* → T1 cerrado. Único cambio de comportamiento deliberado: el build pasa de `cloudflare-module` a `node-server`.
 - **L5** — *"si"* a "auth propia + endpoints sobre MySQL con email + contraseña" → T3–T6 implementados.
 - **L6** — *"funciona tambien"* → verificación end-to-end en navegador: registro, alta de alumno con clases pagadas, reserva y marcado de presente con descuento de saldo. T10 cerrado. Todo commiteado en la rama `migracion-node-mysql`, sin pushear.
+- **L7** — *"1. Vamos a seguir desde local, no tocamos lovable"* / *"2. Dejalo como lo proximo a resolver y 3. Tenemos que ver la manera de resolverlo automatico a eso"* → se sigue en rama, `main` intacto. Purga de sesiones resuelta con un `EVENT` diario de MySQL (el scheduler de esta instalación ya está en `ON`); validado con un evento temporal de 1 segundo: borra las vencidas y conserva las vigentes. Recuperación de contraseña queda como próximo pendiente.
