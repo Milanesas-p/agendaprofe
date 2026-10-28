@@ -17,3 +17,4 @@
 - Use the shared Radix-backed sheet for focus trapping, Escape dismissal and scroll locking.
 - Return mutation success from the shared store and close editors only after successful persistence; edit student details without writing their credit balance.
 - Keep date navigation and name matching in browser-safe helpers; initialize the current local date after hydration to avoid server/client timezone mismatches.
+- Student creation returns its generated ID; combined student/booking editors retain that ID on booking failure so retrying cannot create duplicate students.

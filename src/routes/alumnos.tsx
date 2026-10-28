@@ -5,7 +5,8 @@ import { Plus, Minus, UserPlus, Search, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Sheet } from "@/components/Sheet";
 import { matchesStudent } from "@/lib/agenda";
-import { useStore, balanceLabel, type Student } from "@/lib/store";
+import { useStore, balanceLabel, slots, iso, type Student } from "@/lib/store";
+import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/alumnos")({
   head: () => ({
@@ -60,8 +61,8 @@ function Alumnos() {
           </li>
         ))}
       </ul>
-      {nuevo && <StudentEditor busy={busy} onClose={() => setNuevo(false)} onSave={async s => { if (await addStudent(s)) setNuevo(false); }} />}
-      {editing && <StudentEditor busy={busy} student={editing} onClose={() => setEditing(null)} onSave={async s => { if (await updateStudent(editing.id, s)) setEditing(null); }} />}
+      {nuevo && <StudentEditor busy={busy} onClose={() => setNuevo(false)} onSave={addStudent} />}
+      {editing && <StudentEditor busy={busy} student={editing} onClose={() => setEditing(null)} onSave={async s => await updateStudent(editing.id, s) ? editing.id : false} />}
     </>
   );
 }
@@ -70,8 +71,26 @@ const Tag = ({ children }: { children: React.ReactNode }) => (
   <span className="rounded-md bg-court px-2 py-0.5 text-xs font-bold uppercase text-court-foreground">{children}</span>
 );
 
-function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<void>; student?: Student; busy: boolean }) {
+function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean }) {
+  const { settings, lessons, addLesson } = useStore();
   const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: "mensual", balance: 0 });
+  const [booking, setBooking] = useState(false);
+  const [date, setDate] = useState(() => iso(new Date()));
+  const [start, setStart] = useState("");
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const available = slots(settings).filter(t => !lessons.some(l => l.date === date && l.start === t && l.status !== "cancelada"));
+  async function save() {
+    if (submitting || busy) return;
+    setSubmitting(true);
+    try {
+      const id = savedId ?? await onSave({ ...f, name: f.name.trim(), balance: Math.trunc(f.balance) });
+      if (!id) return;
+      setSavedId(id);
+      if (booking && !await addLesson({ date, start, studentId: id })) return;
+      onClose();
+    } finally { setSubmitting(false); }
+  }
   const seg = <K extends "type" | "pay">(k: K, opts: Student[K][]) => (
     <div className="grid grid-cols-2 gap-2">
       {opts.map((o) => (
@@ -82,13 +101,22 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
   return (
     <Sheet title={student ? "Editar alumno" : "Nuevo alumno"} onClose={onClose}>
       <div className="space-y-4">
+        <fieldset disabled={submitting || busy || Boolean(savedId)} className="space-y-4">
         <input aria-label="Nombre y apellido" placeholder="Nombre y apellido" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="h-14 w-full rounded-xl border-2 border-foreground bg-background px-4 text-lg" />
         {seg("type", ["fijo", "rotativo"])}
         {seg("pay", ["mensual", "semanal"])}
-        {!student && <label className="block font-bold">Saldo inicial (clases)
+        {!student && <label className="block font-bold">Clases pagadas (cantidad)
           <input type="number" value={f.balance} onChange={(e) => setF({ ...f, balance: Number(e.target.value) || 0 })} className="mt-1 h-14 w-full rounded-xl border-2 border-foreground bg-background px-4 text-lg" />
         </label>}
-        <Button variant="ghost" disabled={busy || !f.name.trim()} onClick={() => onSave({ ...f, name: f.name.trim(), balance: Math.trunc(f.balance) })} className="h-14 w-full rounded-xl bg-primary font-display text-2xl text-primary-foreground disabled:opacity-40">{busy ? "Guardando…" : "Guardar"}</Button>
+        </fieldset>
+        <div className="flex items-center justify-between gap-3 border-t-2 border-border pt-4"><label htmlFor="student-booking" className="font-bold">Agregar clase a la agenda</label><Switch id="student-booking" checked={booking} disabled={submitting || busy} onCheckedChange={setBooking} /></div>
+        {booking && <div className="space-y-3">
+          <label className="block font-bold">Día de la clase<input type="date" value={date} disabled={submitting || busy} onChange={e => { setDate(e.target.value); setStart(""); }} className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3" /></label>
+          <label className="block font-bold">Horario<select value={start} disabled={submitting || busy} onChange={e => setStart(e.target.value)} className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3"><option value="">Elegir horario</option>{available.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+          {available.length === 0 && <p role="status" className="text-sm text-destructive">No hay horarios libres para este día.</p>}
+        </div>}
+        {savedId && <p role="status" className="text-sm text-muted-foreground">Alumno guardado. Falta confirmar la reserva.</p>}
+        <Button variant="ghost" disabled={submitting || busy || !f.name.trim() || (booking && (!date || !available.includes(start)))} onClick={save} className="h-14 w-full rounded-xl bg-primary font-display text-2xl text-primary-foreground disabled:opacity-40">{submitting || busy ? "Guardando…" : booking ? "Guardar y reservar" : "Guardar"}</Button>
       </div>
     </Sheet>
   );
