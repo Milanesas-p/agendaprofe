@@ -25,7 +25,7 @@ Branch: `main` (sin push a remoto hasta que el usuario lo decida). Runner: `npm 
 | T7 | Endpoints de datos: alumnos, clases, horarios, saldo | S2, S5, S6 | hecho · `src/server/data.ts` + verificación con SQL real |
 | T8 | Reescribir `store.tsx` y `Account.tsx` contra la API propia | S3, S4 | hecho · sin Supabase en el cliente |
 | T9 | Borrar `src/integrations/supabase/*`, `supabase/`, `.env` viejo | S2 | hecho · 0 referencias a supabase/lovable/drizzle |
-| T10 | Verificación end-to-end local | S3 | pendiente · falta alta de cuenta real en el navegador |
+| T10 | Verificación end-to-end local | S3 | hecho · registro, alta de alumno, reserva y presente con descuento de saldo, probado por el usuario |
 
 ## Log
 
@@ -34,3 +34,4 @@ Branch: `main` (sin push a remoto hasta que el usuario lo decida). Runner: `npm 
 - **L3** — *"resolvemos primero lo de mysql"* → se creó la base `padel`, usuario dedicado y `db/schema.sql`; root no tenía contraseña conocida y se reseteó.
 - **L4** — *"vamos con S0 primero"* → T1 cerrado. Único cambio de comportamiento deliberado: el build pasa de `cloudflare-module` a `node-server`.
 - **L5** — *"si"* a "auth propia + endpoints sobre MySQL con email + contraseña" → T3–T6 implementados.
+- **L6** — *"funciona tambien"* → verificación end-to-end en navegador: registro, alta de alumno con clases pagadas, reserva y marcado de presente con descuento de saldo. T10 cerrado. Todo commiteado en la rama `migracion-node-mysql`, sin pushear.
