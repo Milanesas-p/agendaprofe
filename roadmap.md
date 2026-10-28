@@ -3,6 +3,7 @@
 - [x] Guardar datos privados en Cloud y corregir reservas y horarios.
 - [x] Verificar asistencia y guardado real.
 - [x] Omitir los datos anteriores por decisión del usuario.
-- [ ] Buscar y editar alumnos sin alterar sus saldos.
-- [ ] Elegir fechas y volver a hoy; corregir vista semanal.
-- [ ] Mejorar cierre y navegación de ventanas; verificar los cambios.
+- [x] Buscar y editar alumnos sin alterar sus saldos.
+- [x] Elegir fechas y volver a hoy; corregir vista semanal.
+- [x] Mejorar cierre y navegación de ventanas; verificar fechas, búsqueda y guardado fallido.
+- [ ] Verificar edición y reserva guardadas con una cuenta real: no hay usuarios registrados todavía.
