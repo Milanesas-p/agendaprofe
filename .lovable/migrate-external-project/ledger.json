@@ -9,9 +9,9 @@
   {
     "capability": "records",
     "source": "Browser localStorage; ZIP has illustrative seed rows only",
-    "outcome": "migrate",
-    "status": "pending",
-    "next_action": "Request existing browser data export after preview"
+    "outcome": "skipped_by_user",
+    "status": "verified",
+    "next_action": "None; user chose to omit previous records"
   },
   {
     "capability": "schema",
