@@ -25,6 +25,7 @@ vi.mock("@/server/db", () => ({
   db: () => ({
     execute,
     getConnection: async () => ({
+      query: async () => [[], []],
       execute: connectionExecute,
       beginTransaction: async () => {},
       commit: async () => {},

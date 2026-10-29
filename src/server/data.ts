@@ -49,15 +49,34 @@ async function requireUserId(): Promise<string> {
   return user.id;
 }
 
+/**
+ * Runs `work` in a transaction pinned to REPEATABLE READ.
+ *
+ * The capacity checks count a block and then write, so two concurrent requests
+ * could both see a free place. A populated block is protected by the record locks
+ * a `FOR UPDATE` takes on its rows, but an empty block has no rows to lock: only
+ * REPEATABLE READ gap locks stop a concurrent insert there. Pinning the level per
+ * transaction keeps that guarantee from depending on the server or session
+ * default, and `SET TRANSACTION` (not `SESSION`) cannot leak into another
+ * transaction borrowed from the same pooled connection.
+ */
 async function withTransaction<T>(work: (connection: PoolConnection) => Promise<T>): Promise<T> {
   const connection = await db().getConnection();
   try {
+    await connection.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
     await connection.beginTransaction();
     const result = await work(connection);
     await connection.commit();
     return result;
   } catch (error) {
     await connection.rollback();
+    const code = (error as { code?: string }).code;
+    // Two saves crossing on the same block end in a deadlock or a lock wait
+    // timeout. The rollback already happened, so nothing was written and retrying
+    // is safe: say that in Spanish instead of leaking the driver error.
+    if (code === "ER_LOCK_DEADLOCK" || code === "ER_LOCK_WAIT_TIMEOUT") {
+      throw new Error("No se pudo guardar: hubo dos cambios al mismo tiempo. Probá de nuevo.");
+    }
     throw error;
   } finally {
     connection.release();
@@ -230,7 +249,10 @@ export const addLesson = createServerFn({ method: "POST" })
 
     await withTransaction(async (connection) => {
       // Cancelled rows have a NULL slot_key, so this counts only active students.
-      // FOR UPDATE keeps two concurrent adds from both seeing a free fifth place.
+      // FOR UPDATE makes this a locking read: on a populated block it holds record
+      // locks on the rows it counted, and on an empty block REPEATABLE READ gap
+      // locks stop the concurrent insert. A plain COUNT would read a snapshot, so
+      // two requests could both count three and each write a fourth and a fifth.
       const [rows] = await connection.execute(
         "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ? FOR UPDATE",
         [ownerId, slotKey],
@@ -343,7 +365,7 @@ export const materializeRecurring = createServerFn({ method: "POST" }).handler(
           }
 
           const [countRows] = await connection.execute(
-            "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ?",
+            "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ? FOR UPDATE",
             [ownerId, `${date}#${time}`],
           );
           const active = Number((countRows as Array<{ n: number }>)[0]?.n ?? 0);
@@ -404,20 +426,24 @@ export const moveLesson = createServerFn({ method: "POST" })
       }
       if (lesson.lesson_date === data.date && lesson.start_time === data.start) return;
 
-      const [duplicate] = await connection.execute(
-        "SELECT id FROM lessons WHERE owner_id = ? AND student_id = ? AND lesson_date = ? AND start_time = ? AND status <> 'cancelada' AND id <> ?",
-        [ownerId, lesson.student_id, data.date, data.start, data.id],
-      );
-      if ((duplicate as unknown[]).length > 0) throw new Error("Ese alumno ya está en ese horario.");
-
+      // Locking read of the destination block, so two concurrent moves cannot both
+      // see room for one more. It runs before the snapshot reads below on purpose:
+      // acquiring the lock first makes them see the rows a concurrent transaction
+      // just committed instead of a stale snapshot.
       const [countRows] = await connection.execute(
-        "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ?",
+        "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ? FOR UPDATE",
         [ownerId, `${data.date}#${data.start}`],
       );
       const active = Number((countRows as Array<{ n: number }>)[0]?.n ?? 0);
       if (!canAddToLesson(active)) {
         throw new Error(`Esa clase ya tiene ${MAX_STUDENTS_PER_LESSON} alumnos.`);
       }
+
+      const [duplicate] = await connection.execute(
+        "SELECT id FROM lessons WHERE owner_id = ? AND student_id = ? AND lesson_date = ? AND start_time = ? AND status <> 'cancelada' AND id <> ?",
+        [ownerId, lesson.student_id, data.date, data.start, data.id],
+      );
+      if ((duplicate as unknown[]).length > 0) throw new Error("Ese alumno ya está en ese horario.");
 
       await connection.execute(
         "UPDATE lessons SET lesson_date = ?, start_time = ? WHERE id = ? AND owner_id = ?",
