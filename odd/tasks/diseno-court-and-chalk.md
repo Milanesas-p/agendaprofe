@@ -27,7 +27,7 @@ El mockup es de otro producto (clases particulares con pista, cobro en euros, se
 | T5 | Login | S5 | inline | hecho · `LoginScreen.tsx` |
 | T6 | Alumnos: buscador, filtros, directorio y tarjetas con acciones | S4, S6 | inline | hecho · `src/routes/alumnos.tsx` |
 | T7 | Nueva clase: ruta `/nueva-clase`, pasos 1-2 y CTA; ⊕ en la barra | S2, S6 | inline | hecho · `src/routes/nueva-clase.tsx` + 5 tests |
-| T8 | Resumen: piel nueva (quedó heredando shell y paleta) | S6 | — | pendiente |
+| T8 | Resumen: piel nueva | S6 | inline | hecho · `src/routes/resumen.tsx` (stats en tarjeta, tabla y ausencias sin bordes gruesos) |
 
 ## Log
 

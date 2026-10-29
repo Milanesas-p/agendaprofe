@@ -28,24 +28,25 @@ function Resumen() {
     <>
       <PageHeader sub="Control" title="Resumen" />
       <div className="grid grid-cols-2 gap-3 p-4">
-        <Stat label="Tomadas" value={present.length} cls="bg-success text-success-foreground" />
-        <Stat label="Ausencias" value={absent.length} cls="bg-destructive text-destructive-foreground" />
-        <Stat label="A favor" value={`+${credit}`} cls="bg-primary text-primary-foreground" />
-        <Stat label="Adeudadas" value={debt} cls="bg-court text-court-foreground" />
+        <Stat label="Tomadas" value={present.length} />
+        <Stat label="Ausencias" value={absent.length} tone="text-destructive" />
+        <Stat label="A favor" value={`+${credit}`} tone="text-court" />
+        <Stat label="Adeudadas" value={debt} tone="text-destructive" />
       </div>
 
       <Section title="Por alumno">
         <table className="w-full text-left">
-          <thead className="text-xs uppercase text-muted-foreground"><tr><th className="py-1">Alumno</th><th>Pres.</th><th>Aus.</th><th className="text-right">Saldo</th></tr></thead>
+          <thead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"><tr><th className="py-2">Alumno</th><th>Pres.</th><th>Aus.</th><th className="text-right">Saldo</th></tr></thead>
           <tbody>
             {students.map((s) => (
-              <tr key={s.id} className="border-t-2 border-border font-semibold">
-                <td className="py-3">{s.name}</td>
-                <td>{present.filter((l) => l.studentId === s.id).length}</td>
-                <td className="text-destructive">{absent.filter((l) => l.studentId === s.id).length}</td>
-                <td className={`text-right font-display text-xl ${s.balance < 0 ? "text-destructive" : "text-success"}`}>{balanceLabel(s.balance)}</td>
+              <tr key={s.id} className="border-t border-border text-sm">
+                <td className="py-3 font-semibold text-foreground">{s.name}</td>
+                <td className="tabular-nums">{present.filter((l) => l.studentId === s.id).length}</td>
+                <td className="tabular-nums text-destructive">{absent.filter((l) => l.studentId === s.id).length}</td>
+                <td className={`text-right font-semibold tabular-nums ${s.balance < 0 ? "text-destructive" : s.balance > 0 ? "text-court" : "text-muted-foreground"}`}>{balanceLabel(s.balance)}</td>
               </tr>
             ))}
+            {students.length === 0 && <tr><td colSpan={4} className="py-6 text-center text-sm text-muted-foreground">Todavía no hay alumnos.</td></tr>}
           </tbody>
         </table>
       </Section>
@@ -53,27 +54,27 @@ function Resumen() {
       <Section title="Historial de ausencias">
         <ul className="space-y-2">
           {absent.sort((a, b) => b.date.localeCompare(a.date)).map((l) => (
-            <li key={l.id} className="flex justify-between rounded-lg border-l-4 border-destructive bg-destructive/10 px-3 py-2 font-semibold">
-              <span>{name(l.studentId)}</span>
-              <span className="text-muted-foreground">{l.date.slice(8)}/{l.date.slice(5, 7)} · {l.start}</span>
+            <li key={l.id} className="flex items-baseline justify-between gap-3 rounded-lg bg-destructive/5 px-3 py-2">
+              <span className="min-w-0 truncate text-sm font-semibold text-foreground">{name(l.studentId)}</span>
+              <span className="shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">{l.date.slice(8)}/{l.date.slice(5, 7)} · {l.start}</span>
             </li>
           ))}
-          {absent.length === 0 && <p className="text-muted-foreground">Sin ausencias 🎾</p>}
+          {absent.length === 0 && <p className="text-sm text-muted-foreground">Sin ausencias.</p>}
         </ul>
       </Section>
     </>
   );
 }
 
-const Stat = ({ label, value, cls }: { label: string; value: number | string; cls: string }) => (
-  <div className={`rounded-xl border-2 border-foreground p-4 ${cls}`}>
-    <p className="text-sm font-bold uppercase">{label}</p>
-    <p className="font-display text-5xl leading-none">{value}</p>
+const Stat = ({ label, value, tone = "text-foreground" }: { label: string; value: number | string; tone?: string }) => (
+  <div className="rounded-xl border border-border bg-card p-4">
+    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+    <p className={`mt-1 text-3xl font-semibold leading-none tabular-nums ${tone}`}>{value}</p>
   </div>
 );
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <section className="mx-4 mb-6 border-t-2 border-foreground pt-4">
-    <h2 className="mb-2 font-display text-2xl">{title}</h2>
+  <section className="mx-4 mb-6 border-t border-border pt-4">
+    <h2 className="mb-2 text-base font-semibold text-foreground">{title}</h2>
     {children}
   </section>
 );

@@ -1,23 +1,41 @@
-import { useState } from "react";
-import { LogOut, CircleUserRound } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Sheet } from "@/components/Sheet";
-import { useStore } from "@/lib/store";
+import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { UserRound } from "lucide-react";
+import { useStore, iso } from "@/lib/store";
 
 /**
- * Account bar shown inside the app shell. Signing in lives in `LoginScreen`,
- * which gates the whole app, so this only shows the current account and logout.
+ * Top bar: who is signed in and how the day looks. Signing out and every
+ * preference live in the settings screen, which this bar is the entry to.
+ *
+ * The daily counts are computed after hydration on purpose: the current local
+ * date does not exist during server rendering, and comparing two different
+ * "todays" would desync the markup.
  */
 export function Account() {
-  const { user, busy, signOut } = useStore();
-  const [open, setOpen] = useState(false);
+  const { user, students, lessons } = useStore();
+  const [summary, setSummary] = useState<string | null>(null);
 
-  return <>
-    <div className="account-bar"><span className="font-display text-lg">PÁDEL PRO</span>{user && <Button variant="ghost" size="sm" onClick={() => setOpen(true)}><CircleUserRound />Mi cuenta</Button>}</div>
-    {busy && <div role="status" className="saving-bar">Guardando…</div>}
-    {open && user && <Sheet title="Mi cuenta" onClose={() => setOpen(false)}>
-      <p className="mb-5 break-all">{user.email}</p>
-      <Button className="h-12 w-full" onClick={async () => { await signOut(); setOpen(false); }}><LogOut />Cerrar sesión</Button>
-    </Sheet>}
-  </>;
+  useEffect(() => {
+    const today = iso(new Date());
+    const classes = new Set(lessons.filter((l) => l.date === today && l.status !== "cancelada").map((l) => l.start)).size;
+    setSummary(`${students.length} ${students.length === 1 ? "alumno" : "alumnos"} · ${classes} ${classes === 1 ? "clase hoy" : "clases hoy"}`);
+  }, [students, lessons]);
+
+  if (!user) return null;
+
+  const displayName = user.name?.trim() || user.email.split("@")[0] || "Mi cuenta";
+
+  return (
+    <div className="account-bar">
+      <Link to="/configuracion" aria-label="Configuración" className="flex h-full min-w-0 flex-1 items-center gap-2.5 text-left">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+          <UserRound className="h-4 w-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold text-foreground">{displayName}</span>
+          <span className="block truncate text-[11px] font-semibold text-muted-foreground">{summary ?? " "}</span>
+        </span>
+      </Link>
+    </div>
+  );
 }

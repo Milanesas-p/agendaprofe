@@ -16,6 +16,9 @@ CREATE TABLE users (
   id            CHAR(36)     NOT NULL,
   email         VARCHAR(255) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
+  -- Shown in the app header. Set when the account is provisioned or from the
+  -- settings screen; the email is still the identity.
+  display_name  VARCHAR(120) NULL,
   created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY users_email (email)
@@ -91,12 +94,25 @@ CREATE TABLE court_settings (
   start_hour INT      NOT NULL DEFAULT 8,
   end_hour   INT      NOT NULL DEFAULT 22,
   block_min  INT      NOT NULL DEFAULT 60,
+  -- Optional daily break: the app works from start_hour to end_hour minus this gap
+  -- (e.g. 8-17 with a 12-14 break). Both sides are set together.
+  break_start INT     NULL,
+  break_end   INT     NULL,
   PRIMARY KEY (owner_id),
   CONSTRAINT settings_start CHECK (start_hour BETWEEN 0 AND 23),
   CONSTRAINT settings_end CHECK (end_hour BETWEEN 1 AND 24),
   CONSTRAINT settings_block CHECK (block_min BETWEEN 15 AND 240),
   CONSTRAINT settings_range CHECK (end_hour > start_hour),
   CONSTRAINT settings_fit CHECK (block_min <= (end_hour - start_hour) * 60),
+  -- Both sides are set together, so a bare break_start can never slip through:
+  -- a CHECK is only violated by FALSE, and NULL would pass silently.
+  CONSTRAINT settings_break CHECK (
+    (break_start IS NULL AND break_end IS NULL)
+    OR (break_start IS NOT NULL AND break_end IS NOT NULL
+        AND break_start > start_hour AND break_end < end_hour
+        AND break_start BETWEEN 0 AND 23 AND break_end BETWEEN 1 AND 24
+        AND break_end > break_start)
+  ),
   CONSTRAINT settings_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

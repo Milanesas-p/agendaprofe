@@ -1,8 +1,12 @@
 import { Account } from "@/components/Account";
+import { initTheme } from "@/lib/theme";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Link, Outlet } from "@tanstack/react-router";
 import { CalendarDays, Users, Plus } from "lucide-react";
 import { useStore } from "@/lib/store";
+
+// Before the first paint: a dark session never flashes the light theme.
+initTheme();
 
 export function AppShell() {
   const { user, loading } = useStore();

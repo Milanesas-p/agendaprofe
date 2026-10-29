@@ -10,6 +10,7 @@ import {
   saveSettings as saveSettingsFn,
   setLessonStatus as setLessonStatusFn,
   updateStudent as updateStudentFn,
+  updateProfile as updateProfileFn,
 } from "@/server/data";
 import { getCurrentUser, loginUser, logoutUser, type AuthUser } from "@/server/auth";
 import { balanceDelta, slots, validSettings, type ClassStatus } from "./rules";
@@ -36,7 +37,14 @@ export type Student = {
   balance: number;
 };
 export type Lesson = { id: string; date: string; start: string; studentId: string; status: ClassStatus };
-export type Settings = { startHour: number; endHour: number; blockMin: number };
+export type Settings = {
+  startHour: number;
+  endHour: number;
+  blockMin: number;
+  /** Optional daily break: both sides together, or both null. */
+  breakStart: number | null;
+  breakEnd: number | null;
+};
 export const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 export const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 export function applyStatus(lesson: Lesson, student: Student, next: ClassStatus): Student {
@@ -58,9 +66,10 @@ type Ctx = State & {
   adjustBalance: (id: string, delta: number) => Promise<boolean>;
   moveLesson: (id: string, target: { date: string; start: string }) => Promise<boolean>;
   setSettings: (s: Settings) => Promise<boolean>;
+  updateProfile: (name: string) => Promise<boolean>;
 };
 
-const empty: State = { students: [], lessons: [], settings: { startHour: 8, endHour: 22, blockMin: 60 } };
+const empty: State = { students: [], lessons: [], settings: { startHour: 8, endHour: 22, blockMin: 60, breakStart: null, breakEnd: null } };
 const C = createContext<Ctx | null>(null);
 
 const messageOf = (error: unknown, fallback: string) =>
@@ -191,6 +200,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       changed(() => adjustBalanceFn({ data: { id, delta } }), "No se pudo ajustar el saldo."),
     moveLesson: (id, target) =>
       changed(() => moveLessonFn({ data: { id, date: target.date, start: target.start } }), "No se pudo mover la clase."),
+    updateProfile: async (name) => {
+      if (!user) { toast.error("Iniciá sesión para guardar tus cambios."); return false; }
+      setBusy(true);
+      try {
+        await updateProfileFn({ data: { name } });
+        setUser({ ...user, name });
+        return true;
+      } catch (error) {
+        toast.error(messageOf(error, "No se pudo guardar tu nombre."));
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
     setSettings: async (s) => {
       if (!validSettings(s) || !user) return false;
       if (st.lessons.some((l) => l.status !== "cancelada" && !slots(s).includes(l.start))) {

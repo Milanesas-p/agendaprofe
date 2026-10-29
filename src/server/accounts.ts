@@ -16,30 +16,32 @@ import { hashPassword } from "./password.ts";
  * extensionless specifiers. Vite resolves them the same way.
  */
 
-export type Account = { id: string; email: string };
+export type Account = { id: string; email: string; name: string | null };
 
-type UserRow = { id: string; email: string };
+type UserRow = { id: string; email: string; display_name: string | null };
 
 /** Looks an account up by email, or null. Validates the address first. */
 export async function findAccount(rawEmail: unknown): Promise<Account | null> {
   const email = normalizeEmail(rawEmail);
-  const [rows] = await db().execute("SELECT id, email FROM users WHERE email = ?", [email]);
+  const [rows] = await db().execute("SELECT id, email, display_name FROM users WHERE email = ?", [email]);
   const row = (rows as UserRow[])[0];
-  return row ? { id: row.id, email: row.email } : null;
+  return row ? { id: row.id, email: row.email, name: row.display_name ?? null } : null;
 }
 
 /** Creates a user with a scrypt hash. Throws on an invalid or already used email. */
-export async function createAccount(rawEmail: unknown, rawPassword: unknown): Promise<Account> {
+export async function createAccount(rawEmail: unknown, rawPassword: unknown, rawName?: unknown): Promise<Account> {
   const email = normalizeEmail(rawEmail);
   const password = validatePassword(rawPassword);
+  const name = typeof rawName === "string" && rawName.trim().length > 0 ? rawName.trim().slice(0, 120) : null;
   const id = randomUUID();
   const passwordHash = await hashPassword(password);
 
   try {
-    await db().execute("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", [
+    await db().execute("INSERT INTO users (id, email, password_hash, display_name) VALUES (?, ?, ?, ?)", [
       id,
       email,
       passwordHash,
+      name,
     ]);
   } catch (error) {
     if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
@@ -48,7 +50,7 @@ export async function createAccount(rawEmail: unknown, rawPassword: unknown): Pr
     throw error;
   }
 
-  return { id, email };
+  return { id, email, name };
 }
 
 /**

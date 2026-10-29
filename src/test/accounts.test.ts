@@ -14,11 +14,12 @@ beforeEach(() => {
 
 describe("findAccount", () => {
   it("normalizes the email before querying", async () => {
-    execute.mockResolvedValueOnce([[{ id: "user-1", email: "profe@padel.com" }], []]);
+    execute.mockResolvedValueOnce([[{ id: "user-1", email: "profe@padel.com", display_name: "Genaro Stocco" }], []]);
 
     await expect(findAccount("  Profe@Padel.COM ")).resolves.toEqual({
       id: "user-1",
       email: "profe@padel.com",
+      name: "Genaro Stocco",
     });
     expect((execute.mock.calls[0]?.[1] as unknown[])[0]).toBe("profe@padel.com");
   });
@@ -69,7 +70,7 @@ describe("resetAccountPassword", () => {
 
     const account = await resetAccountPassword("profe@padel.com", "nuevaClave1");
 
-    expect(account).toEqual({ id: "user-1", email: "profe@padel.com" });
+    expect(account).toEqual({ id: "user-1", email: "profe@padel.com", name: null });
 
     const statements = execute.mock.calls.map(([sql]) => String(sql));
     expect(statements.some((sql) => sql.startsWith("UPDATE users SET password_hash"))).toBe(true);

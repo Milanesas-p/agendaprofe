@@ -10,7 +10,7 @@ export type { AuthUser };
 
 type Credentials = { email: string; password: string };
 
-type UserRow = { id: string; email: string; password_hash: string };
+type UserRow = { id: string; email: string; display_name: string | null; password_hash: string };
 
 function readCredentials(input: unknown): Credentials {
   const raw = (input ?? {}) as Record<string, unknown>;
@@ -35,7 +35,7 @@ async function startSession(userId: string): Promise<void> {
 export const loginUser = createServerFn({ method: "POST" })
   .validator(readCredentials)
   .handler(async ({ data }): Promise<AuthUser> => {
-    const [rows] = await db().execute("SELECT id, email, password_hash FROM users WHERE email = ?", [
+    const [rows] = await db().execute("SELECT id, email, display_name, password_hash FROM users WHERE email = ?", [
       data.email,
     ]);
     const row = (rows as UserRow[])[0];
@@ -43,7 +43,7 @@ export const loginUser = createServerFn({ method: "POST" })
       throw new Error("Correo o contraseña incorrectos.");
     }
     await startSession(row.id);
-    return { id: row.id, email: row.email };
+    return { id: row.id, email: row.email, name: row.display_name ?? null };
   });
 
 export const logoutUser = createServerFn({ method: "POST" }).handler(async (): Promise<null> => {

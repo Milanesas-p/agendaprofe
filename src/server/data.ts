@@ -36,11 +36,18 @@ export type LessonDto = {
   status: ClassStatus;
 };
 
-export type SettingsDto = { startHour: number; endHour: number; blockMin: number };
+export type SettingsDto = {
+  startHour: number;
+  endHour: number;
+  blockMin: number;
+  /** Optional daily break, both sides together or both null. */
+  breakStart: number | null;
+  breakEnd: number | null;
+};
 
 export type Snapshot = { students: StudentDto[]; lessons: LessonDto[]; settings: SettingsDto };
 
-const DEFAULT_SETTINGS: SettingsDto = { startHour: 8, endHour: 22, blockMin: 60 };
+const DEFAULT_SETTINGS: SettingsDto = { startHour: 8, endHour: 22, blockMin: 60, breakStart: null, breakEnd: null };
 
 const STATUSES: readonly ClassStatus[] = ["programada", "presente", "ausente", "cancelada"];
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -99,6 +106,12 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], field: s
   return value as T;
 }
 
+/** Optional whole hour: a missing value means "no break", not zero. */
+function optionalInteger(value: unknown, field: string): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  return integer(value, field);
+}
+
 function integer(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isInteger(value)) throw new Error(`Dato inválido: ${field}.`);
   return value;
@@ -143,12 +156,18 @@ function rowId(value: unknown): string {
 
 async function readSettings(ownerId: string): Promise<SettingsDto> {
   const [rows] = await db().execute(
-    "SELECT start_hour, end_hour, block_min FROM court_settings WHERE owner_id = ?",
+    "SELECT start_hour, end_hour, block_min, break_start, break_end FROM court_settings WHERE owner_id = ?",
     [ownerId],
   );
-  const row = (rows as Array<{ start_hour: number; end_hour: number; block_min: number }>)[0];
+  const row = (rows as Array<{ start_hour: number; end_hour: number; block_min: number; break_start: number | null; break_end: number | null }>)[0];
   if (!row) return DEFAULT_SETTINGS;
-  return { startHour: row.start_hour, endHour: row.end_hour, blockMin: row.block_min };
+  return {
+    startHour: row.start_hour,
+    endHour: row.end_hour,
+    blockMin: row.block_min,
+    breakStart: row.break_start ?? null,
+    breakEnd: row.break_end ?? null,
+  };
 }
 
 /**
@@ -491,15 +510,30 @@ export const moveLesson = createServerFn({ method: "POST" })
     });
   });
 
+/** The teacher's own display name, shown in the app header. */
+export const updateProfile = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const raw = (input ?? {}) as Record<string, unknown>;
+    return { name: text(raw["name"], "nombre", 120) };
+  })
+  .handler(async ({ data }): Promise<void> => {
+    const ownerId = await requireUserId();
+    await db().execute("UPDATE users SET display_name = ? WHERE id = ?", [data.name, ownerId]);
+  });
+
 export const saveSettings = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     const raw = (input ?? {}) as Record<string, unknown>;
+    const breakStart = optionalInteger(raw["breakStart"], "inicio del corte");
+    const breakEnd = optionalInteger(raw["breakEnd"], "fin del corte");
     const settings: SettingsDto = {
       startHour: integer(raw["startHour"], "hora de inicio"),
       endHour: integer(raw["endHour"], "hora de fin"),
       blockMin: integer(raw["blockMin"], "duración"),
+      breakStart,
+      breakEnd,
     };
-    if (!validSettings(settings)) throw new Error("Revisá las horas y la duración: entre 15 y 240 minutos.");
+    if (!validSettings(settings)) throw new Error("Revisá las horas: el corte tiene que entrar en la jornada y caer en un bloque.");
     return settings;
   })
   .handler(async ({ data }): Promise<void> => {
@@ -515,9 +549,10 @@ export const saveSettings = createServerFn({ method: "POST" })
         throw new Error("Los nuevos bloques dejarían clases existentes fuera de la agenda.");
       }
       await connection.execute(
-        `INSERT INTO court_settings (owner_id, start_hour, end_hour, block_min) VALUES (?, ?, ?, ?) AS incoming
-         ON DUPLICATE KEY UPDATE start_hour = incoming.start_hour, end_hour = incoming.end_hour, block_min = incoming.block_min`,
-        [ownerId, data.startHour, data.endHour, data.blockMin],
+        `INSERT INTO court_settings (owner_id, start_hour, end_hour, block_min, break_start, break_end) VALUES (?, ?, ?, ?, ?, ?) AS incoming
+         ON DUPLICATE KEY UPDATE start_hour = incoming.start_hour, end_hour = incoming.end_hour, block_min = incoming.block_min,
+           break_start = incoming.break_start, break_end = incoming.break_end`,
+        [ownerId, data.startHour, data.endHour, data.blockMin, data.breakStart, data.breakEnd],
       );
     });
   });

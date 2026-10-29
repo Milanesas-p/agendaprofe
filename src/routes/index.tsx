@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight, BarChart3 } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { canAddToLesson } from "@/lib/rules";
-import { useStore, slots, iso, addDays, type Lesson, type Student, validSettings } from "@/lib/store";
+import { useStore, slots, iso, addDays, type Lesson, type Student } from "@/lib/store";
 import { profileLabel } from "@/lib/player";
 
 export const Route = createFileRoute("/")({
@@ -39,7 +39,7 @@ const usedSlots = (lessons: Lesson[]) =>
   new Set(lessons.filter((l) => l.status !== "cancelada").map((l) => l.start)).size;
 
 function Agenda() {
-  const { lessons, students, settings, setStatus, addLesson, moveLesson, setSettings, busy } = useStore();
+  const { lessons, students, settings, setStatus, addLesson, moveLesson, busy } = useStore();
   const [view, setView] = useState<"dia" | "semana">("dia");
   const [day, setDay] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
@@ -47,8 +47,7 @@ function Agenda() {
   const [moving, setMoving] = useState(false);
   const [moveDate, setMoveDate] = useState("");
   const [moveStart, setMoveStart] = useState("");
-  const [cfg, setCfg] = useState(false);
-  const [draft, setDraft] = useState(settings);
+
   const [weekStart, setWeekStart] = useState("");
   const [search, setSearch] = useState("");
   useEffect(() => { const today = iso(new Date()); setDay(today); setWeekStart(weekStartFor(today)); }, []);
@@ -85,9 +84,9 @@ function Agenda() {
             <Link to="/resumen" aria-label="Resumen" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
               <BarChart3 className="h-5 w-5" />
             </Link>
-            <Button variant="ghost" onClick={() => { setDraft(settings); setCfg(true); }} aria-label="Configurar bloques" className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground">
+            <Link to="/configuracion" aria-label="Configuración" className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground">
               <Settings2 className="h-5 w-5" />
-            </Button>
+            </Link>
           </div>
         }
       />
@@ -232,18 +231,6 @@ function Agenda() {
               </Button>
             </div>
           )}
-        </Sheet>
-      )}
-      {cfg && (
-        <Sheet onClose={() => setCfg(false)} title="Bloques horarios">
-          {([["startHour", "Desde (hora)"], ["endHour", "Hasta (hora)"], ["blockMin", "Duración (min)"]] as const).map(([k, label]) => (
-            <label key={k} className="mb-3 block text-sm font-semibold">
-              {label}
-              <input type="number" value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: Number(e.target.value) })} className="mt-1 h-14 w-full rounded-lg border border-border bg-card px-4 text-lg" />
-            </label>
-          ))}
-          {!validSettings(draft) && <p role="alert" className="text-destructive">Revisá las horas y la duración: entre 15 y 240 minutos.</p>}
-          <Button disabled={busy || !validSettings(draft)} className="mt-3 h-12 w-full" onClick={async () => { if(await setSettings(draft)) setCfg(false); }}>Guardar horarios</Button>
         </Sheet>
       )}
     </>

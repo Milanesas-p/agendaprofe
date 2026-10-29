@@ -5,9 +5,31 @@
  * other way around). Pure functions only: safe to import from either side.
  */
 
-export type SlotRules = { startHour: number; endHour: number; blockMin: number };
+export type SlotRules = {
+  startHour: number;
+  endHour: number;
+  blockMin: number;
+  /** Optional break: the app works from `startHour` to `endHour` minus this gap. */
+  breakStart?: number | null;
+  breakEnd?: number | null;
+};
 
 export type ClassStatus = "programada" | "presente" | "ausente" | "cancelada";
+
+/**
+ * A break is only valid when it sits inside the working window on a block
+ * boundary, so the slot grid keeps its rhythm on both sides of the gap.
+ */
+const validBreak = (s: SlotRules): boolean => {
+  const from = s.breakStart ?? null;
+  const to = s.breakEnd ?? null;
+  if (from === null && to === null) return true;
+  if (from === null || to === null) return false;
+  if (!Number.isInteger(from) || !Number.isInteger(to)) return false;
+  if (from <= s.startHour || to >= s.endHour || to <= from) return false;
+  const onGrid = (hour: number) => ((hour - s.startHour) * 60) % s.blockMin === 0;
+  return onGrid(from) && onGrid(to);
+};
 
 export const validSettings = (s: SlotRules): boolean =>
   Number.isInteger(s.startHour) &&
@@ -19,12 +41,17 @@ export const validSettings = (s: SlotRules): boolean =>
   s.endHour <= 24 &&
   s.blockMin >= 15 &&
   s.blockMin <= 240 &&
-  s.blockMin <= (s.endHour - s.startHour) * 60;
+  s.blockMin <= (s.endHour - s.startHour) * 60 &&
+  validBreak(s);
 
 export function slots(s: SlotRules): string[] {
   if (!validSettings(s)) return [];
   const out: string[] = [];
+  const from = s.breakStart ?? null;
+  const to = s.breakEnd ?? null;
   for (let m = s.startHour * 60; m + s.blockMin <= s.endHour * 60; m += s.blockMin) {
+    // A block that touches the break at all does not exist that day.
+    if (from !== null && to !== null && m < to * 60 && m + s.blockMin > from * 60) continue;
     out.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
   }
   return out;

@@ -17,10 +17,11 @@ async function main(): Promise<void> {
   // Checked before asking for a password, so a bad address never costs two prompts.
   if (await findAccount(email)) throw new Error("Ese correo ya está registrado.");
 
+  const name = (await ask("Nombre y apellido: ")).trim();
   const password = await askNewPassword();
-  const account = await createAccount(email, password);
+  const account = await createAccount(email, password, name);
 
-  console.log(`Cuenta creada: ${account.email}`);
+  console.log(`Cuenta creada: ${account.email}${account.name ? ` (${account.name})` : ""}`);
 }
 
 try {

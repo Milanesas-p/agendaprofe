@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AlumnosRouteImport } from './routes/alumnos'
+import { Route as ConfiguracionRouteImport } from './routes/configuracion'
 import { Route as NuevaClaseRouteImport } from './routes/nueva-clase'
 import { Route as ResumenRouteImport } from './routes/resumen'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const AlumnosRoute = AlumnosRouteImport.update({
   id: '/alumnos',
   path: '/alumnos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracionRoute = ConfiguracionRouteImport.update({
+  id: '/configuracion',
+  path: '/configuracion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NuevaClaseRoute = NuevaClaseRouteImport.update({
@@ -38,12 +44,14 @@ const ResumenRoute = ResumenRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/alumnos': typeof AlumnosRoute
+  '/configuracion': typeof ConfiguracionRoute
   '/nueva-clase': typeof NuevaClaseRoute
   '/resumen': typeof ResumenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/alumnos': typeof AlumnosRoute
+  '/configuracion': typeof ConfiguracionRoute
   '/nueva-clase': typeof NuevaClaseRoute
   '/resumen': typeof ResumenRoute
 }
@@ -51,20 +59,28 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/alumnos': typeof AlumnosRoute
+  '/configuracion': typeof ConfiguracionRoute
   '/nueva-clase': typeof NuevaClaseRoute
   '/resumen': typeof ResumenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/alumnos' | '/nueva-clase' | '/resumen'
+  fullPaths: '/' | '/alumnos' | '/configuracion' | '/nueva-clase' | '/resumen'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/alumnos' | '/nueva-clase' | '/resumen'
-  id: '__root__' | '/' | '/alumnos' | '/nueva-clase' | '/resumen'
+  to: '/' | '/alumnos' | '/configuracion' | '/nueva-clase' | '/resumen'
+  id:
+    | '__root__'
+    | '/'
+    | '/alumnos'
+    | '/configuracion'
+    | '/nueva-clase'
+    | '/resumen'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AlumnosRoute: typeof AlumnosRoute
+  ConfiguracionRoute: typeof ConfiguracionRoute
   NuevaClaseRoute: typeof NuevaClaseRoute
   ResumenRoute: typeof ResumenRoute
 }
@@ -83,6 +99,13 @@ declare module '@tanstack/react-router' {
       path: '/alumnos'
       fullPath: '/alumnos'
       preLoaderRoute: typeof AlumnosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracion': {
+      id: '/configuracion'
+      path: '/configuracion'
+      fullPath: '/configuracion'
+      preLoaderRoute: typeof ConfiguracionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nueva-clase': {
@@ -105,6 +128,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AlumnosRoute: AlumnosRoute,
+  ConfiguracionRoute: ConfiguracionRoute,
   NuevaClaseRoute: NuevaClaseRoute,
   ResumenRoute: ResumenRoute,
 }

@@ -72,4 +72,45 @@ describe("validSettings", () => {
   it("rejects non integer values", () => {
     expect(validSettings({ startHour: 8.5, endHour: 22, blockMin: 60 })).toBe(false);
   });
+
+  it("accepts a break inside the window, aligned to the grid", () => {
+    expect(validSettings({ startHour: 8, endHour: 17, blockMin: 60, breakStart: 12, breakEnd: 14 })).toBe(true);
+  });
+
+  it("rejects a half-configured break", () => {
+    expect(validSettings({ startHour: 8, endHour: 17, blockMin: 60, breakStart: 12, breakEnd: null })).toBe(false);
+    expect(validSettings({ startHour: 8, endHour: 17, blockMin: 60, breakStart: null, breakEnd: 14 })).toBe(false);
+  });
+
+  it("rejects a break that leaves the window or is empty", () => {
+    expect(validSettings({ startHour: 8, endHour: 17, blockMin: 60, breakStart: 8, breakEnd: 14 })).toBe(false);
+    expect(validSettings({ startHour: 8, endHour: 17, blockMin: 60, breakStart: 12, breakEnd: 17 })).toBe(false);
+    expect(validSettings({ startHour: 8, endHour: 17, blockMin: 60, breakStart: 14, breakEnd: 14 })).toBe(false);
+    expect(validSettings({ startHour: 8, endHour: 17, blockMin: 60, breakStart: 13, breakEnd: 12 })).toBe(false);
+  });
+
+  it("rejects a break that does not fall on a block boundary", () => {
+    // With 90 minute blocks from 08:00 the boundaries are 08:00, 09:30, 11:00...
+    expect(validSettings({ startHour: 8, endHour: 14, blockMin: 90, breakStart: 11, breakEnd: 12 })).toBe(false);
+  });
+});
+
+describe("slots with a break", () => {
+  it("skips the blocks that fall inside the break", () => {
+    expect(slots({ startHour: 8, endHour: 17, blockMin: 60, breakStart: 12, breakEnd: 14 })).toEqual([
+      "08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00",
+    ]);
+  });
+
+  it("keeps the grid intact when there is no break", () => {
+    expect(slots({ startHour: 8, endHour: 12, blockMin: 60, breakStart: null, breakEnd: null })).toEqual([
+      "08:00", "09:00", "10:00", "11:00",
+    ]);
+  });
+
+  it("splits a half hour grid around an aligned break", () => {
+    expect(slots({ startHour: 8, endHour: 14, blockMin: 30, breakStart: 12, breakEnd: 13 })).toEqual([
+      "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "13:00", "13:30",
+    ]);
+  });
 });
