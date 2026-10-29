@@ -5,7 +5,8 @@ import { Plus, Minus, UserPlus, Search, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Sheet } from "@/components/Sheet";
 import { matchesStudent } from "@/lib/agenda";
-import { useStore, balanceLabel, slots, iso, type Student } from "@/lib/store";
+import { useStore, balanceLabel, slots, iso, type Student, type Category, type CourtSide } from "@/lib/store";
+import { CATEGORIES, COURT_SIDES, courtSideLabel } from "@/lib/player";
 import { canAddToLesson } from "@/lib/rules";
 import { Switch } from "@/components/ui/switch";
 
@@ -51,8 +52,11 @@ function Alumnos() {
             </div>
             <div className="min-w-0 flex-1">
               <Button variant="ghost" aria-label={`Editar ${s.name}`} onClick={() => setEditing(s)} className="h-auto w-full justify-start px-0 py-1 text-lg font-bold"><span className="truncate">{s.name}</span><Pencil className="shrink-0 text-muted-foreground" /></Button>
-              <div className="mt-1 flex gap-1.5">
+              <div className="mt-1 flex flex-wrap gap-1.5">
                 <Tag>{s.type}</Tag><Tag>{s.pay}</Tag>
+                {s.category && <Tag>{s.category}</Tag>}
+                {s.courtSide && <Tag>{courtSideLabel(s.courtSide)}</Tag>}
+                {fixedSlot(s) && <Tag>{fixedSlot(s)}</Tag>}
               </div>
             </div>
             <div className="flex flex-col gap-1">
@@ -70,18 +74,29 @@ function Alumnos() {
 
 const DOW = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
+/** The weekly slot as the teacher reads it, or null when the student has none. */
+const fixedSlot = (s: Student): string | null => {
+  if (s.recurringWeekday === null || s.recurringTime === null) return null;
+  const day = DOW[s.recurringWeekday];
+  return day ? `${day} ${s.recurringTime}` : null;
+};
+
 const Tag = ({ children }: { children: React.ReactNode }) => (
   <span className="rounded-md bg-court px-2 py-0.5 text-xs font-bold uppercase text-court-foreground">{children}</span>
 );
 
 function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean }) {
   const { settings, lessons, addLesson } = useStore();
-  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: "mensual", phone: null, recurringWeekday: null, recurringTime: null, balance: 0 });
+  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, recurringWeekday: null, recurringTime: null, balance: 0 });
   const [booking, setBooking] = useState(false);
   const [date, setDate] = useState(() => iso(new Date()));
   const [start, setStart] = useState("");
   const [savedId, setSavedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Only a fijo student gets the extra class from here: a rotativo is booked
+  // from the agenda. Deriving it (instead of clearing the switch on change) means
+  // a date and time chosen before switching the type can never be booked.
+  const bookAlso = booking && f.type === "fijo";
   // A slot is offered while it still has room for one more student.
   const available = slots(settings).filter((t) => {
     const active = lessons.filter((l) => l.date === date && l.start === t && l.status !== "cancelada").length;
@@ -94,7 +109,7 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
       const id = savedId ?? await onSave({ ...f, name: f.name.trim(), balance: Math.trunc(f.balance) });
       if (!id) return;
       setSavedId(id);
-      if (booking && !await addLesson({ date, start, studentId: id })) return;
+      if (bookAlso && !await addLesson({ date, start, studentId: id })) return;
       onClose();
     } finally { setSubmitting(false); }
   }
@@ -113,6 +128,30 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
         <input type="tel" inputMode="tel" aria-label="Teléfono" placeholder="Teléfono (opcional)" value={f.phone ?? ""} onChange={(e) => setF({ ...f, phone: e.target.value === "" ? null : e.target.value })} className="h-14 w-full rounded-xl border-2 border-foreground bg-background px-4 text-lg" />
         {seg("type", ["fijo", "rotativo"])}
         {seg("pay", ["mensual", "semanal"])}
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block font-bold">Categoría
+            <select
+              aria-label="Categoría"
+              value={f.category ?? ""}
+              onChange={(e) => setF({ ...f, category: e.target.value === "" ? null : (e.target.value as Category) })}
+              className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3"
+            >
+              <option value="">Sin categoría</option>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label className="block font-bold">Posición
+            <select
+              aria-label="Posición"
+              value={f.courtSide ?? ""}
+              onChange={(e) => setF({ ...f, courtSide: e.target.value === "" ? null : (e.target.value as CourtSide) })}
+              className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3"
+            >
+              <option value="">Sin posición</option>
+              {COURT_SIDES.map((side) => <option key={side} value={side}>{courtSideLabel(side)}</option>)}
+            </select>
+          </label>
+        </div>
         {!student && <label className="block font-bold">Clases pagadas (cantidad)
           <input type="number" value={f.balance} onChange={(e) => setF({ ...f, balance: Number(e.target.value) || 0 })} className="mt-1 h-14 w-full rounded-xl border-2 border-foreground bg-background px-4 text-lg" />
         </label>}
@@ -146,14 +185,14 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
           <p className="text-xs text-muted-foreground">Se agenda solo las próximas 4 semanas. Mover una clase puntual no cambia el horario.</p>
         </div>
         </fieldset>
-        <div className="flex items-center justify-between gap-3 border-t-2 border-border pt-4"><label htmlFor="student-booking" className="font-bold">Agregar clase a la agenda</label><Switch id="student-booking" checked={booking} disabled={submitting || busy} onCheckedChange={setBooking} /></div>
-        {booking && <div className="space-y-3">
+        {f.type === "fijo" && <div className="flex items-center justify-between gap-3 border-t-2 border-border pt-4"><label htmlFor="student-booking" className="font-bold">Agregar clase a la agenda</label><Switch id="student-booking" checked={booking} disabled={submitting || busy} onCheckedChange={setBooking} /></div>}
+        {bookAlso && <div className="space-y-3">
           <label className="block font-bold">Día de la clase<input type="date" value={date} disabled={submitting || busy} onChange={e => { setDate(e.target.value); setStart(""); }} className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3" /></label>
           <label className="block font-bold">Horario<select value={start} disabled={submitting || busy} onChange={e => setStart(e.target.value)} className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3"><option value="">Elegir horario</option>{available.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
           {available.length === 0 && <p role="status" className="text-sm text-destructive">No hay horarios libres para este día.</p>}
         </div>}
         {savedId && <p role="status" className="text-sm text-muted-foreground">Alumno guardado. Falta confirmar la reserva.</p>}
-        <Button variant="ghost" disabled={submitting || busy || !f.name.trim() || (f.recurringWeekday !== null && f.recurringTime === null) || (booking && (!date || !available.includes(start)))} onClick={save} className="h-14 w-full rounded-xl bg-primary font-display text-2xl text-primary-foreground disabled:opacity-40">{submitting || busy ? "Guardando…" : booking ? "Guardar y reservar" : "Guardar"}</Button>
+        <Button variant="ghost" disabled={submitting || busy || !f.name.trim() || (f.recurringWeekday !== null && f.recurringTime === null) || (bookAlso && (!date || !available.includes(start)))} onClick={save} className="h-14 w-full rounded-xl bg-primary font-display text-2xl text-primary-foreground disabled:opacity-40">{submitting || busy ? "Guardando…" : bookAlso ? "Guardar y reservar" : "Guardar"}</Button>
       </div>
     </Sheet>
   );

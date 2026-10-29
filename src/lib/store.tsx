@@ -13,9 +13,11 @@ import {
 } from "@/server/data";
 import { getCurrentUser, loginUser, logoutUser, type AuthUser } from "@/server/auth";
 import { balanceDelta, slots, validSettings, type ClassStatus } from "./rules";
+import type { Category, CourtSide } from "./player";
 
 export { slots, validSettings };
 export type { ClassStatus };
+export type { Category, CourtSide };
 
 export type StudentType = "fijo" | "rotativo";
 export type PayMode = "mensual" | "semanal";
@@ -25,6 +27,9 @@ export type Student = {
   type: StudentType;
   pay: PayMode;
   phone: string | null;
+  /** Padel category and court side, or null when the teacher did not set them. */
+  category: Category | null;
+  courtSide: CourtSide | null;
   /** Weekly fixed slot: 0 = Sunday, or null when the student has none. */
   recurringWeekday: number | null;
   recurringTime: string | null;
@@ -49,7 +54,7 @@ type Ctx = State & {
   setStatus: (id: string, s: ClassStatus) => Promise<boolean>;
   addLesson: (l: Omit<Lesson, "id" | "status">) => Promise<boolean>;
   addStudent: (s: Omit<Student, "id">) => Promise<string | false>;
-  updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay" | "phone" | "recurringWeekday" | "recurringTime">) => Promise<boolean>;
+  updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay" | "phone" | "category" | "courtSide" | "recurringWeekday" | "recurringTime">) => Promise<boolean>;
   adjustBalance: (id: string, delta: number) => Promise<boolean>;
   moveLesson: (id: string, target: { date: string; start: string }) => Promise<boolean>;
   setSettings: (s: Settings) => Promise<boolean>;
@@ -169,7 +174,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addStudent: async (s) => {
       const result = await commit(
         async () => {
-          const id = await addStudentFn({ data: { name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, recurringWeekday: s.recurringWeekday, recurringTime: s.recurringTime, balance: s.balance } });
+          const id = await addStudentFn({ data: { name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, category: s.category, courtSide: s.courtSide, recurringWeekday: s.recurringWeekday, recurringTime: s.recurringTime, balance: s.balance } });
           if (s.recurringWeekday !== null && s.recurringTime !== null) await afterScheduleChange();
           return id;
         },
@@ -179,7 +184,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     updateStudent: (id, s) =>
       changed(async () => {
-        await updateStudentFn({ data: { id, name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, recurringWeekday: s.recurringWeekday, recurringTime: s.recurringTime } });
+        await updateStudentFn({ data: { id, name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, category: s.category, courtSide: s.courtSide, recurringWeekday: s.recurringWeekday, recurringTime: s.recurringTime } });
         if (s.recurringWeekday !== null && s.recurringTime !== null) await afterScheduleChange();
       }, "No se pudo guardar el alumno."),
     adjustBalance: (id, delta) =>

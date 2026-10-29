@@ -29,6 +29,9 @@ CREATE TABLE students (
   pay        VARCHAR(16)  NOT NULL,
   -- Optional: needed for the future "message this student on WhatsApp" button.
   phone      VARCHAR(32)  NULL,
+  -- Optional player profile. Closed sets, mirrored in src/lib/player.ts.
+  category   VARCHAR(8)  NULL,
+  court_side VARCHAR(12) NULL,
   -- Weekly fixed slot, optional. weekday: 0=Sunday .. 6=Saturday.
   -- last_date is the last date already resolved, so generation only ever moves
   -- forward and a moved or cancelled occurrence can never be regenerated.
@@ -50,6 +53,12 @@ CREATE TABLE students (
   ),
   CONSTRAINT students_type CHECK (type IN ('fijo', 'rotativo')),
   CONSTRAINT students_pay CHECK (pay IN ('mensual', 'semanal')),
+  CONSTRAINT students_category CHECK (
+    category IS NULL OR category IN ('1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va')
+  ),
+  CONSTRAINT students_court_side CHECK (
+    court_side IS NULL OR court_side IN ('drive', 'reves', 'indistinto')
+  ),
   CONSTRAINT students_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

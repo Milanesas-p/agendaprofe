@@ -38,7 +38,7 @@ describe("booking from student form", () => {
     chooseLesson();
     fireEvent.click(screen.getByRole("button", { name: "Guardar y reservar" }));
     await waitFor(() => expect(store.addLesson).toHaveBeenCalledWith({ date: "2026-11-02", start: "09:00", studentId: "student-1" }));
-    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: "mensual", phone: null, recurringWeekday: null, recurringTime: null, balance: 4 });
+    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, recurringWeekday: null, recurringTime: null, balance: 4 });
   });
   it("retries a failed booking without creating another student", async () => {
     store.addLesson.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
@@ -78,5 +78,52 @@ describe("booking from student form", () => {
     ];
     openEditor(); chooseLesson();
     expect(bookingSlots()).toContain("09:00");
+  });
+});
+
+describe("booking is only offered for a fijo student", () => {
+  it("hides the option once the student is rotativo", () => {
+    openEditor();
+    expect(screen.getByRole("switch", { name: "Agregar clase a la agenda" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "rotativo" }));
+
+    expect(screen.queryByRole("switch", { name: "Agregar clase a la agenda" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Guardar" })).toBeTruthy();
+  });
+
+  it("does not book a class chosen before switching the student to rotativo", async () => {
+    openEditor();
+    chooseLesson();
+    fireEvent.click(screen.getByRole("button", { name: "rotativo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() => expect(store.addStudent).toHaveBeenCalled());
+    expect(store.addLesson).not.toHaveBeenCalled();
+  });
+});
+
+describe("player profile in the student form", () => {
+  it("saves the padel category and the court side with the student", async () => {
+    openEditor();
+    fireEvent.change(screen.getByLabelText("Categoría"), { target: { value: "3ra" } });
+    fireEvent.change(screen.getByLabelText("Posición"), { target: { value: "reves" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() =>
+      expect(store.addStudent).toHaveBeenCalledWith(expect.objectContaining({ category: "3ra", courtSide: "reves" })),
+    );
+  });
+
+  it("starts empty and stores no profile by default", async () => {
+    openEditor();
+    expect((screen.getByLabelText("Categoría") as HTMLSelectElement).value).toBe("");
+    expect((screen.getByLabelText("Posición") as HTMLSelectElement).value).toBe("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() =>
+      expect(store.addStudent).toHaveBeenCalledWith(expect.objectContaining({ category: null, courtSide: null })),
+    );
   });
 });

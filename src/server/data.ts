@@ -6,6 +6,7 @@ import { db } from "./db";
 import { balanceDelta, canAddToLesson, slots, validSettings, MAX_STUDENTS_PER_LESSON, type ClassStatus } from "@/lib/rules";
 import { normalizePhone } from "@/lib/phone";
 import { datesToGenerate } from "@/lib/recurrence";
+import { CATEGORIES, COURT_SIDES, type Category, type CourtSide } from "@/lib/player";
 
 export type StudentDto = {
   id: string;
@@ -13,6 +14,9 @@ export type StudentDto = {
   type: "fijo" | "rotativo";
   pay: "mensual" | "semanal";
   phone: string | null;
+  /** Padel category and court side, or null when the teacher did not set them. */
+  category: Category | null;
+  courtSide: CourtSide | null;
   /** Weekly fixed slot, or null when the student has none. 0 = Sunday. */
   recurringWeekday: number | null;
   recurringTime: string | null;
@@ -119,6 +123,19 @@ function recurringSlot(input: Record<string, unknown>): { weekday: number | null
   return { weekday, time };
 }
 
+/**
+ * Reads the optional player profile. A missing value clears it; anything present
+ * must belong to the closed set the column's CHECK also enforces.
+ */
+function playerProfile(input: Record<string, unknown>): { category: Category | null; courtSide: CourtSide | null } {
+  const category = input["category"];
+  const courtSide = input["courtSide"];
+  return {
+    category: category === null || category === undefined ? null : oneOf(category, CATEGORIES, "categoría"),
+    courtSide: courtSide === null || courtSide === undefined ? null : oneOf(courtSide, COURT_SIDES, "posición"),
+  };
+}
+
 function rowId(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-fA-F-]{36}$/.test(value)) throw new Error("Identificador inválido.");
   return value;
@@ -137,7 +154,7 @@ async function readSettings(ownerId: string): Promise<SettingsDto> {
 export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): Promise<Snapshot> => {
   const ownerId = await requireUserId();
   const [studentRows] = await db().execute(
-    "SELECT id, name, type, pay, phone, recurring_weekday, recurring_time, balance FROM students WHERE owner_id = ? ORDER BY name",
+    "SELECT id, name, type, pay, phone, category, court_side, recurring_weekday, recurring_time, balance FROM students WHERE owner_id = ? ORDER BY name",
     [ownerId],
   );
   const [lessonRows] = await db().execute(
@@ -150,6 +167,8 @@ export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): P
     type: s.type,
     pay: s.pay,
     phone: s.phone ?? null,
+    category: (s.category ?? null) as Category | null,
+    courtSide: (s.courtSide ?? null) as CourtSide | null,
     recurringWeekday: s.recurringWeekday === null || s.recurringWeekday === undefined ? null : Number(s.recurringWeekday),
     recurringTime: s.recurringTime ?? null,
     balance: Number(s.balance),
@@ -174,6 +193,7 @@ export const addStudent = createServerFn({ method: "POST" })
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
       pay: oneOf(raw["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
       phone: normalizePhone(raw["phone"]),
+      ...playerProfile(raw),
       ...recurringSlot(raw),
       balance: integer(raw["balance"], "clases pagadas"),
     };
@@ -182,8 +202,8 @@ export const addStudent = createServerFn({ method: "POST" })
     const ownerId = await requireUserId();
     const id = randomUUID();
     await db().execute(
-      "INSERT INTO students (id, owner_id, name, type, pay, phone, recurring_weekday, recurring_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [id, ownerId, data.name, data.type, data.pay, data.phone, data.weekday, data.time, data.balance],
+      "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, recurring_weekday, recurring_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [id, ownerId, data.name, data.type, data.pay, data.phone, data.category, data.courtSide, data.weekday, data.time, data.balance],
     );
     return id;
   });
@@ -197,6 +217,7 @@ export const updateStudent = createServerFn({ method: "POST" })
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
       pay: oneOf(raw["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
       phone: normalizePhone(raw["phone"]),
+      ...playerProfile(raw),
       ...recurringSlot(raw),
     };
   })
@@ -206,8 +227,8 @@ export const updateStudent = createServerFn({ method: "POST" })
     // attendance or an explicit +/- adjustment. Changing the weekly slot is not
     // retroactive: occurrences already created stay where they are.
     const [result] = await db().execute(
-      "UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, recurring_weekday = ?, recurring_time = ? WHERE id = ? AND owner_id = ?",
-      [data.name, data.type, data.pay, data.phone, data.weekday, data.time, data.id, ownerId],
+      "UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ?, recurring_weekday = ?, recurring_time = ? WHERE id = ? AND owner_id = ?",
+      [data.name, data.type, data.pay, data.phone, data.category, data.courtSide, data.weekday, data.time, data.id, ownerId],
     );
     if ((result as { affectedRows: number }).affectedRows === 0) throw new Error("Ese alumno no existe.");
   });
