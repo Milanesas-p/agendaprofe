@@ -31,26 +31,26 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center bg-court px-6 py-10 text-court-foreground">
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center bg-background px-6 py-10 text-foreground">
       <header className="mb-8 text-center">
-        <p className="text-sm font-semibold uppercase tracking-widest text-primary">Tu agenda de clases</p>
-        <h1 className="font-display text-6xl leading-none">PÁDEL PRO</h1>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tu agenda de clases</p>
+        <h1 className="text-4xl font-semibold tracking-tight">Pádel Pro</h1>
       </header>
 
-      <form onSubmit={submit} className="space-y-4 rounded-2xl bg-background p-5 text-foreground">
-        <label className="block font-semibold">Correo electrónico<input type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className="account-input" /></label>
-        <label className="block font-semibold">Contraseña<input type="password" minLength={8} required autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="account-input" /></label>
+      <form onSubmit={submit} className="space-y-4 rounded-xl border border-border bg-card p-5 text-foreground">
+        <label className="block text-sm font-semibold">Correo electrónico<input type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className="account-input" /></label>
+        <label className="block text-sm font-semibold">Contraseña<input type="password" minLength={8} required autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="account-input" /></label>
         {message && <p role="status" className="text-sm">{message}</p>}
         <Button disabled={pending || busy} type="submit" className="h-12 w-full"><LogIn />{pending ? "Un momento…" : "Ingresar"}</Button>
       </form>
 
-      <section className="mt-8 rounded-2xl border-2 border-court-foreground/25 p-5 text-center">
+      <section className="mt-8 rounded-xl border border-border p-5 text-center">
         <p className="font-semibold">¿Querés sumar nuestro sistema a tus clases?</p>
         <a
           href={`https://wa.me/${CONTACT_PHONE}`}
           target="_blank"
           rel="noreferrer"
-          className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
         >
           <MessageCircle className="h-5 w-5" />Contactate
         </a>

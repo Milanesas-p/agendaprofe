@@ -19,8 +19,8 @@
  */
 
 @theme inline {
-  --font-display: "Barlow Condensed", sans-serif;
-  --font-sans: "DM Sans", sans-serif;
+  --font-display: "Hanken Grotesk", sans-serif;
+  --font-sans: "Hanken Grotesk", sans-serif;
   --color-court: var(--court);
   --color-court-foreground: var(--court-foreground);
   --color-success: var(--success);
@@ -68,30 +68,35 @@
 }
 
 :root {
-  --court: oklch(0.28 0.065 163);
-  --court-foreground: oklch(0.99 0 0);
-  --success: oklch(0.46 0.13 153);
-  --success-foreground: oklch(0.99 0 0);
+  /*
+   * "Court & Chalk": warm vellum, raw charcoal, turf green for active
+   * confirmations only. Values come from the Stitch design export; every hex was
+   * converted to OKLCH rather than eyeballed.
+   */
+  --court: oklch(0.433 0.071 153.2);
+  --court-foreground: oklch(1 0 0);
+  --success: oklch(0.433 0.071 153.2);
+  --success-foreground: oklch(1 0 0);
   --radius: 0.5rem;
-  --background: oklch(0.98 0.003 140);
-  --foreground: oklch(0.23 0.013 153);
+  --background: oklch(0.982 0.01 87.5);
+  --foreground: oklch(0.224 0.008 118.4);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
+  --card-foreground: oklch(0.224 0.008 118.4);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.89 0.2 121);
-  --primary-foreground: oklch(0.23 0.04 150);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.48 0.018 153);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  --popover-foreground: oklch(0.224 0.008 118.4);
+  --primary: oklch(0.226 0.004 106.7);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.965 0.01 87.5);
+  --secondary-foreground: oklch(0.224 0.008 118.4);
+  --muted: oklch(0.958 0.005 95.1);
+  --muted-foreground: oklch(0.562 0.006 95.2);
+  --accent: oklch(0.958 0.005 95.1);
+  --accent-foreground: oklch(0.224 0.008 118.4);
+  --destructive: oklch(0.506 0.193 27.7);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.918 0.008 98.9);
+  --input: oklch(0.918 0.008 98.9);
+  --ring: oklch(0.226 0.004 106.7);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -159,9 +164,9 @@
   }
 }
 
-.account-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: var(--court); color: var(--court-foreground); border-bottom: 1px solid var(--court-foreground); }
+.account-bar { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; height: 56px; background: var(--color-background); color: var(--color-foreground); border-bottom: 1px solid var(--color-border); }
 .saving-bar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 60; padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border-radius: var(--radius); }
-.account-input { display: block; width: 100%; height: 48px; border: 2px solid var(--foreground); border-radius: var(--radius); background: var(--background); padding: 0 12px; margin-top: 6px; }
+.account-input { display: block; width: 100%; height: 48px; border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-card); padding: 0 12px; margin-top: 6px; }
 button { cursor: pointer; }
 @media (max-width: 380px) { .grid-cols-3 > button { font-size: 12px; gap: 2px; padding-left: 2px; padding-right: 2px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }

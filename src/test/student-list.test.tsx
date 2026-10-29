@@ -59,11 +59,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("student list", () => {
-  it("shows the weekly slot next to the type and payment tags", () => {
+  it("shows the weekly slot on the student line", () => {
     store.students = [student({ recurringWeekday: 5, recurringTime: "14:00" })];
     renderPage();
 
-    expect(screen.getByText("Viernes 14:00")).toBeTruthy();
+    expect(screen.getByText(/Viernes 14:00/)).toBeTruthy();
   });
 
   it("shows no slot for a student without a fixed schedule", () => {
@@ -73,19 +73,25 @@ describe("student list", () => {
     expect(screen.queryByText(/^\w+ \d\d:\d\d$/)).toBeNull();
   });
 
-  it("shows the padel category and the court side", () => {
+  it("shows the padel category and the court side on the student line", () => {
     store.students = [student({ category: "3ra", courtSide: "reves" })];
     renderPage();
 
-    expect(screen.getByText("3ra")).toBeTruthy();
-    expect(screen.getByText("Revés")).toBeTruthy();
+    expect(screen.getByText("fijo · 3ra · Revés")).toBeTruthy();
   });
 
   it("shows nothing extra when the profile is empty", () => {
     store.students = [student()];
     renderPage();
 
-    expect(screen.queryByText("Revés")).toBeNull();
+    expect(screen.queryByText(/Revés/)).toBeNull();
+  });
+
+  it("states the balance in words instead of the number tag", () => {
+    store.students = [student({ balance: -2 })];
+    renderPage();
+
+    expect(screen.getByText("Debe 2 clases")).toBeTruthy();
   });
 
   it("keeps payment out of the row: it belongs to the editor", () => {

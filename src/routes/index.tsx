@@ -1,9 +1,9 @@
 import { weekStartFor, matchesStudent, weeklySlotLabel } from "@/lib/agenda";
 import { Sheet } from "@/components/Sheet";
 import { Button } from "@/components/ui/button";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight, BarChart3 } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { canAddToLesson } from "@/lib/rules";
 import { useStore, slots, iso, addDays, type Lesson, type Student, validSettings } from "@/lib/store";
@@ -25,10 +25,10 @@ export const Route = createFileRoute("/")({
 
 const DOW = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const statusStyle: Record<Lesson["status"], string> = {
-  programada: "bg-card border-foreground",
-  presente: "bg-success/15 border-success",
-  ausente: "bg-destructive/10 border-destructive",
-  cancelada: "bg-muted border-muted-foreground border-dashed opacity-70",
+  programada: "bg-muted text-muted-foreground",
+  presente: "bg-court/10 text-court",
+  ausente: "bg-destructive/10 text-destructive",
+  cancelada: "bg-muted text-muted-foreground line-through",
 };
 
 /** Everything the teacher may want to know before acting on a student. */
@@ -81,30 +81,35 @@ function Agenda() {
         sub="Tu cancha hoy"
         title="Agenda"
         right={
-          <Button variant="ghost" onClick={() => { setDraft(settings); setCfg(true); }} aria-label="Configurar bloques" className="grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground">
-            <Settings2 className="h-6 w-6" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link to="/resumen" aria-label="Resumen" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
+              <BarChart3 className="h-5 w-5" />
+            </Link>
+            <Button variant="ghost" onClick={() => { setDraft(settings); setCfg(true); }} aria-label="Configurar bloques" className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground">
+              <Settings2 className="h-5 w-5" />
+            </Button>
+          </div>
         }
       />
-      <div className="sticky top-[92px] z-20 space-y-3 border-b-2 border-foreground bg-background px-4 py-3">
-        <div className="grid grid-cols-2 rounded-xl border-2 border-foreground p-1">
+      <div className="sticky top-[92px] z-20 space-y-3 border-b border-border bg-background px-4 py-3">
+        <div className="grid grid-cols-2 rounded-lg bg-muted p-1">
           {(["dia", "semana"] as const).map((v) => (
-            <Button variant="ghost" key={v} onClick={() => setView(v)} className={`h-11 rounded-lg font-display text-xl ${view === v ? "bg-foreground text-background" : ""}`}>
+            <Button variant="ghost" key={v} onClick={() => setView(v)} className={`h-10 rounded-md text-sm font-semibold ${view === v ? "bg-foreground text-background" : "text-muted-foreground"}`}>
               {v === "dia" ? "Día" : "Semana"}
             </Button>
           ))}
         </div>
-        <div className="flex items-center justify-between"><Button variant="ghost" aria-label="Semana anterior" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), -7)); setWeekStart(k); setDay(k); }}><ChevronLeft /></Button><span className="text-sm font-bold">{day ? new Date(day + "T12:00:00").toLocaleDateString("es-AR", { month: "long", year: "numeric" }) : "Agenda"}</span><Button variant="ghost" aria-label="Semana siguiente" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), 7)); setWeekStart(k); setDay(k); }}><ChevronRight /></Button></div>
-        <div className="flex items-center gap-2"><input type="date" aria-label="Fecha de la agenda" value={day} onChange={e => { if(e.target.value) selectDate(e.target.value); }} className="h-10 min-w-0 flex-1 rounded-lg border-2 border-border bg-background px-3 font-semibold" /><Button variant="outline" onClick={() => selectDate(iso(new Date()))}>Hoy</Button></div>
+        <div className="flex items-center justify-between"><Button variant="ghost" aria-label="Semana anterior" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), -7)); setWeekStart(k); setDay(k); }}><ChevronLeft /></Button><span className="text-sm font-semibold text-foreground">{day ? new Date(day + "T12:00:00").toLocaleDateString("es-AR", { month: "long", year: "numeric" }) : "Agenda"}</span><Button variant="ghost" aria-label="Semana siguiente" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), 7)); setWeekStart(k); setDay(k); }}><ChevronRight /></Button></div>
+        <div className="flex items-center gap-2"><input type="date" aria-label="Fecha de la agenda" value={day} onChange={e => { if(e.target.value) selectDate(e.target.value); }} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm font-semibold" /><Button variant="outline" onClick={() => selectDate(iso(new Date()))} className="h-10">Hoy</Button></div>
         <div className="flex gap-2 overflow-x-auto">
           {week.map((d) => {
             const k = iso(d);
             const n = usedSlots(lessons.filter((l) => l.date === k));
             return (
-              <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className={`flex h-auto min-w-14 shrink-0 flex-col items-center gap-1 rounded-lg border-2 py-2 ${k === day ? "border-foreground bg-primary text-primary-foreground" : "border-border"}`}>
-                <span className="text-xs font-bold uppercase">{DOW[d.getDay()]}</span>
-                <span className="font-display text-2xl leading-none">{d.getDate()}</span>
-                <span className="text-xs font-semibold">{n}</span>
+              <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className={`flex h-auto min-w-14 shrink-0 flex-col items-center gap-1 rounded-lg py-2 ${k === day ? "bg-foreground text-background" : "bg-muted/60 text-muted-foreground"}`}>
+                <span className="text-[10px] font-semibold uppercase tracking-wider">{DOW[d.getDay()]}</span>
+                <span className="text-xl font-semibold leading-none tabular-nums">{d.getDate()}</span>
+                <span className="text-[10px] font-semibold">{n}</span>
               </Button>
             );
           })}
@@ -119,10 +124,10 @@ function Agenda() {
             if (ls.length === 0) {
               return (
                 <li key={t} className="flex gap-3">
-                  <span className="w-14 shrink-0 pt-4 font-display text-2xl leading-none">{t}</span>
-                  <Button variant="ghost" onClick={() => { setSearch(""); setAdding(t); }} className="flex h-16 flex-1 items-center gap-4 rounded-xl border-2 border-dashed border-success/60 bg-success/5 px-4 text-left">
-                    <span className="flex-1 font-semibold text-success">Libre</span>
-                    <Plus className="h-6 w-6 text-success" />
+                  <span className="w-12 shrink-0 pt-3 text-xl font-semibold leading-none tabular-nums text-foreground">{t}</span>
+                  <Button variant="ghost" onClick={() => { setSearch(""); setAdding(t); }} className="flex h-16 flex-1 items-center gap-4 rounded-xl border border-dashed border-court/40 bg-court/5 px-4 text-left">
+                    <span className="flex-1 text-sm font-semibold text-court">Libre</span>
+                    <Plus className="h-5 w-5 text-court" />
                   </Button>
                 </li>
               );
@@ -130,14 +135,14 @@ function Agenda() {
             const active = ls.filter((l) => l.status !== "cancelada").length;
             return (
               <li key={t} className="flex gap-3">
-                <span className="w-14 shrink-0 pt-2 font-display text-2xl leading-none">{t}</span>
-                <div className="min-w-0 flex-1 overflow-hidden rounded-xl border-2 border-foreground bg-card">
-                  <div className="flex items-center justify-between gap-2 border-b-2 border-border px-2 py-1">
-                    <span className="pl-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                <span className="w-12 shrink-0 pt-2 text-xl font-semibold leading-none tabular-nums text-foreground">{t}</span>
+                <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
+                  <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                       {active === 1 ? "1 alumno" : `${active} alumnos`}
                     </span>
                     {canAddToLesson(active) && (
-                      <Button variant="ghost" aria-label={`Agregar alumno a las ${t}`} onClick={() => { setSearch(""); setAdding(t); }} className="grid h-8 w-8 place-items-center rounded-full border-2 border-foreground"><Plus className="h-4 w-4" /></Button>
+                      <Button variant="ghost" aria-label={`Agregar alumno a las ${t}`} onClick={() => { setSearch(""); setAdding(t); }} className="grid h-8 w-8 place-items-center rounded-full bg-muted text-foreground hover:bg-border"><Plus className="h-4 w-4" /></Button>
                     )}
                   </div>
                   <ul>
@@ -157,10 +162,10 @@ function Agenda() {
             const ls = lessons.filter((l) => l.date === k).sort((a, b) => a.start.localeCompare(b.start));
             const starts = [...new Set(ls.map((l) => l.start))].sort();
             return (
-              <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className="block h-auto w-full whitespace-normal rounded-lg border-2 border-foreground bg-card p-3 text-left">
-                <span className="block font-display text-2xl">{DOW[d.getDay()]} {d.getDate()} <span className="text-base text-muted-foreground">· {blocks.length - usedSlots(ls)} libres</span></span>
+              <Button variant="ghost" key={k} onClick={() => { setDay(k); setView("dia"); }} className="block h-auto w-full whitespace-normal rounded-xl border border-border bg-card p-3 text-left">
+                <span className="block text-lg font-semibold tracking-tight text-foreground">{DOW[d.getDay()]} {d.getDate()} <span className="text-sm font-normal text-muted-foreground">· {blocks.length - usedSlots(ls)} libres</span></span>
                 <span className="mt-2 flex flex-wrap gap-1.5">
-                  {starts.length === 0 && <span className="text-sm text-success font-semibold">Todo libre</span>}
+                  {starts.length === 0 && <span className="text-sm font-medium text-court">Todo libre</span>}
                   {starts.map((t) => {
                     const group = ls.filter((l) => l.start === t);
                     const active = group.filter((l) => l.status !== "cancelada").length;
@@ -170,7 +175,7 @@ function Agenda() {
                         : group.some((l) => l.status === "ausente") ? statusStyle.ausente
                           : statusStyle.programada;
                     return (
-                      <span key={t} className={`rounded-md border-2 px-2 py-1 text-sm font-bold ${tone}`}>{t} · {active === 0 ? "cancelada" : `${active} ${active === 1 ? "alumno" : "alumnos"}`}</span>
+                      <span key={t} className={`rounded px-2 py-1 text-xs font-semibold ${tone}`}>{t} · {active === 0 ? "cancelada" : `${active} ${active === 1 ? "alumno" : "alumnos"}`}</span>
                     );
                   })}
                 </span>
@@ -183,10 +188,10 @@ function Agenda() {
       {adding && (
         <Sheet onClose={() => setAdding(null)} title={`Reservar ${adding}`}>
           <div className="space-y-2">
-            <input type="search" aria-label="Buscar alumno para reservar" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full rounded-lg border-2 border-border bg-background px-3" />
+            <input type="search" aria-label="Buscar alumno para reservar" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full rounded-lg border border-border bg-card px-3" />
             {students.length === 0 && <p className="text-muted-foreground">Todavía no hay alumnos.</p>}
             {students.filter(s => matchesStudent(s.name, search) && !alreadyIn.has(s.id)).map((s) => (
-              <Button variant="ghost" key={s.id} disabled={busy} onClick={async () => { if(await addLesson({ date: day, start: adding, studentId: s.id })) setAdding(null); }} className="flex h-14 w-full items-center justify-between rounded-xl border-2 border-foreground px-4 font-bold">
+              <Button variant="ghost" key={s.id} disabled={busy} onClick={async () => { if(await addLesson({ date: day, start: adding, studentId: s.id })) setAdding(null); }} className="flex h-14 w-full items-center justify-between rounded-xl border border-border bg-card px-4 font-semibold hover:bg-muted">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="min-w-0 truncate">{s.name}</span>
                   {s.balance < 0 && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
@@ -198,17 +203,17 @@ function Agenda() {
       )}
       {acting && (
         <Sheet title={actingStudent?.name ?? "Alumno"} onClose={() => { setActing(null); setMoving(false); }}>
-          <p className="mb-4 text-sm font-bold uppercase text-muted-foreground">{acting.date} · {acting.start} · {acting.status}</p>
+          <p className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{acting.date} · {acting.start} · {acting.status}</p>
           {actingStudent && studentDetail(actingStudent) && (
-            <p className="mb-4 text-sm font-bold uppercase text-muted-foreground">{studentDetail(actingStudent)}</p>
+            <p className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{studentDetail(actingStudent)}</p>
           )}
           {moving ? (
             <div className="space-y-3">
-              <label className="block font-bold">Nuevo día
-                <input type="date" aria-label="Nuevo día de la clase" value={moveDate} onChange={(e) => { setMoveDate(e.target.value); setMoveStart(""); }} className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3" />
+              <label className="block text-sm font-semibold">Nuevo día
+                <input type="date" aria-label="Nuevo día de la clase" value={moveDate} onChange={(e) => { setMoveDate(e.target.value); setMoveStart(""); }} className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3" />
               </label>
-              <label className="block font-bold">Horario libre
-                <select aria-label="Nuevo horario de la clase" value={moveStart} onChange={(e) => setMoveStart(e.target.value)} className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3">
+              <label className="block text-sm font-semibold">Horario libre
+                <select aria-label="Nuevo horario de la clase" value={moveStart} onChange={(e) => setMoveStart(e.target.value)} className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3">
                   <option value="">Elegir horario</option>
                   {moveSlots.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -232,9 +237,9 @@ function Agenda() {
       {cfg && (
         <Sheet onClose={() => setCfg(false)} title="Bloques horarios">
           {([["startHour", "Desde (hora)"], ["endHour", "Hasta (hora)"], ["blockMin", "Duración (min)"]] as const).map(([k, label]) => (
-            <label key={k} className="mb-3 block font-bold">
+            <label key={k} className="mb-3 block text-sm font-semibold">
               {label}
-              <input type="number" value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: Number(e.target.value) })} className="mt-1 h-14 w-full rounded-xl border-2 border-foreground bg-background px-4 text-xl" />
+              <input type="number" value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: Number(e.target.value) })} className="mt-1 h-14 w-full rounded-lg border border-border bg-card px-4 text-lg" />
             </label>
           ))}
           {!validSettings(draft) && <p role="alert" className="text-destructive">Revisá las horas y la duración: entre 15 y 240 minutos.</p>}
@@ -261,8 +266,8 @@ function StudentRow({ lesson, student, busy, onStatus, onActions }: {
   const name = student?.name ?? "Alumno";
   const owes = (student?.balance ?? 0) < 0;
   const profile = student ? profileLabel(student) : "";
-  const tone = cancelled ? "" : lesson.status === "presente" ? "bg-success/10" : lesson.status === "ausente" ? "bg-destructive/10" : "";
-  const round = "grid h-9 w-9 shrink-0 place-items-center rounded-full";
+  const tone = cancelled ? "" : lesson.status === "presente" ? "bg-court/5" : lesson.status === "ausente" ? "bg-destructive/5" : "";
+  const round = "grid h-10 w-10 shrink-0 place-items-center rounded-full";
 
   return (
     <li className={`flex items-center gap-1.5 border-b border-border/60 px-2 py-1.5 last:border-b-0 ${tone}`}>
@@ -272,7 +277,7 @@ function StudentRow({ lesson, student, busy, onStatus, onActions }: {
         aria-label={`Marcar presente a ${name}`}
         aria-pressed={lesson.status === "presente"}
         onClick={() => onStatus(lesson.id, lesson.status === "presente" ? "programada" : "presente")}
-        className={`${round} ${lesson.status === "presente" ? "bg-success text-success-foreground" : "border-2 border-success text-success"}`}
+        className={`${round} ${lesson.status === "presente" ? "bg-court text-court-foreground" : "text-muted-foreground hover:bg-muted hover:text-court"}`}
       ><Check className="h-5 w-5" /></Button>
       <Button
         variant="ghost"
@@ -280,13 +285,13 @@ function StudentRow({ lesson, student, busy, onStatus, onActions }: {
         aria-label={`Marcar ausente a ${name}`}
         aria-pressed={lesson.status === "ausente"}
         onClick={() => onStatus(lesson.id, lesson.status === "ausente" ? "programada" : "ausente")}
-        className={`${round} ${lesson.status === "ausente" ? "bg-destructive text-destructive-foreground" : "border-2 border-destructive text-destructive"}`}
+        className={`${round} ${lesson.status === "ausente" ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-muted hover:text-destructive"}`}
       ><X className="h-5 w-5" /></Button>
-      <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={() => onActions(lesson)} className="flex h-9 min-w-0 flex-1 items-center gap-1.5 px-1 text-left">
-        <span className={`truncate font-bold ${cancelled ? "text-muted-foreground line-through" : ""}`}>{name}</span>
-        {profile && <span className="shrink-0 text-xs font-bold text-muted-foreground">{profile}</span>}
+      <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={() => onActions(lesson)} className="flex h-10 min-w-0 flex-1 items-center gap-1.5 px-1 text-left">
+        <span className={`truncate text-[15px] font-semibold ${cancelled ? "text-muted-foreground line-through" : "text-foreground"}`}>{name}</span>
+        {profile && <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{profile}</span>}
         {owes && !cancelled && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
-        {cancelled && <span className="shrink-0 text-xs font-bold uppercase text-muted-foreground">cancelada</span>}
+        {cancelled && <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">cancelada</span>}
       </Button>
     </li>
   );
@@ -294,8 +299,8 @@ function StudentRow({ lesson, student, busy, onStatus, onActions }: {
 
 function Legend() {
   return (
-    <div className="flex justify-between text-xs font-bold uppercase">
-      <span className="flex items-center gap-1"><i className="h-3 w-3 rounded-full bg-success" />Libre / Presente</span>
+    <div className="flex justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="flex items-center gap-1"><i className="h-3 w-3 rounded-full bg-court" />Libre / Presente</span>
       <span className="flex items-center gap-1"><i className="h-3 w-3 rounded-full bg-foreground" />Ocupada</span>
       <span className="flex items-center gap-1"><i className="h-3 w-3 rounded-full bg-destructive" />Ausente</span>
       <span className="flex items-center gap-1"><i className="h-3 w-3 rounded-full bg-muted-foreground" />Cancelada</span>

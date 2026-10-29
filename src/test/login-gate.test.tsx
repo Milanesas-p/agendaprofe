@@ -23,7 +23,9 @@ vi.mock("@/lib/store", async (importOriginal) => ({
 // AppShell renders router primitives that need a live route tree; only the gate matters here.
 vi.mock("@tanstack/react-router", () => ({
   Outlet: () => null,
-  Link: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+  Link: ({ to, activeOptions: _activeOptions, children, ...rest }: Record<string, unknown>) => (
+    <a href={String(to)} {...rest}>{children as React.ReactNode}</a>
+  ),
   useNavigate: () => navigate,
 }));
 
@@ -66,7 +68,7 @@ describe("login gate", () => {
 
     expect(screen.getByText("Agenda")).toBeTruthy();
     expect(screen.getByText("Alumnos")).toBeTruthy();
-    expect(screen.getByText("Resumen")).toBeTruthy();
+    expect(screen.getByLabelText("Nueva clase")).toBeTruthy();
     expect(screen.queryByText(CONTACT)).toBeNull();
   });
 });
