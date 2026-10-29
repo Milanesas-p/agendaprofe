@@ -151,6 +151,24 @@ async function readSettings(ownerId: string): Promise<SettingsDto> {
   return { startHour: row.start_hour, endHour: row.end_hour, blockMin: row.block_min };
 }
 
+/**
+ * A `students` row exactly as MySQL returns it. Kept separate from `StudentDto`
+ * so the snake_case to camelCase step is explicit: reading the wrong key used to
+ * turn a saved value into `undefined` and then into `null` on the client.
+ */
+type RawStudentRow = {
+  id: string;
+  name: string;
+  type: StudentDto["type"];
+  pay: StudentDto["pay"];
+  phone: string | null;
+  category: Category | null;
+  court_side: CourtSide | null;
+  recurring_weekday: number | null;
+  recurring_time: string | null;
+  balance: number;
+};
+
 export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): Promise<Snapshot> => {
   const ownerId = await requireUserId();
   const [studentRows] = await db().execute(
@@ -161,16 +179,16 @@ export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): P
     "SELECT id, lesson_date, start_time, student_id, status FROM lessons WHERE owner_id = ? ORDER BY lesson_date, start_time",
     [ownerId],
   );
-  const students = (studentRows as Array<StudentDto>).map((s) => ({
+  const students = (studentRows as RawStudentRow[]).map((s) => ({
     id: s.id,
     name: s.name,
     type: s.type,
     pay: s.pay,
     phone: s.phone ?? null,
     category: (s.category ?? null) as Category | null,
-    courtSide: (s.courtSide ?? null) as CourtSide | null,
-    recurringWeekday: s.recurringWeekday === null || s.recurringWeekday === undefined ? null : Number(s.recurringWeekday),
-    recurringTime: s.recurringTime ?? null,
+    courtSide: (s.court_side ?? null) as CourtSide | null,
+    recurringWeekday: s.recurring_weekday === null || s.recurring_weekday === undefined ? null : Number(s.recurring_weekday),
+    recurringTime: s.recurring_time ?? null,
     balance: Number(s.balance),
   }));
   const lessons = (
