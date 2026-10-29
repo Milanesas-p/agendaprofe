@@ -137,4 +137,18 @@ describe("agenda with several students in one class", () => {
 
     expect(screen.queryByText(/4ta|Revés/)).toBeNull();
   });
+
+  it("keeps the balance number out of the booking sheet", () => {
+    store.students = [student("s1", "María Pérez", -3), student("s2", "Juan Gómez", 4)];
+    store.lessons = [];
+    renderAgenda();
+
+    const free = screen.getAllByRole("button", { name: /Libre/ })[0];
+    if (!free) throw new Error("No free slot to book");
+    fireEvent.click(free);
+
+    expect(screen.queryByText("-3")).toBeNull();
+    expect(screen.queryByText("+4")).toBeNull();
+    expect(screen.getAllByLabelText("Debe clases")).toHaveLength(1);
+  });
 });

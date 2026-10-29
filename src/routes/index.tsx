@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { canAddToLesson } from "@/lib/rules";
-import { useStore, slots, iso, addDays, balanceLabel, type Lesson, type Student, validSettings } from "@/lib/store";
+import { useStore, slots, iso, addDays, type Lesson, type Student, validSettings } from "@/lib/store";
 import { profileLabel } from "@/lib/player";
 
 export const Route = createFileRoute("/")({
@@ -187,7 +187,10 @@ function Agenda() {
             {students.length === 0 && <p className="text-muted-foreground">Todavía no hay alumnos.</p>}
             {students.filter(s => matchesStudent(s.name, search) && !alreadyIn.has(s.id)).map((s) => (
               <Button variant="ghost" key={s.id} disabled={busy} onClick={async () => { if(await addLesson({ date: day, start: adding, studentId: s.id })) setAdding(null); }} className="flex h-14 w-full items-center justify-between rounded-xl border-2 border-foreground px-4 font-bold">
-                <span className="min-w-0 truncate">{s.name}</span> <span className="font-display text-xl">{balanceLabel(s.balance)}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="min-w-0 truncate">{s.name}</span>
+                  {s.balance < 0 && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
+                </span>
               </Button>
             ))}
           </div>
