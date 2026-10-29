@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Minus, UserPlus, Search, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Sheet } from "@/components/Sheet";
-import { matchesStudent } from "@/lib/agenda";
+import { matchesStudent, weeklySlotLabel, WEEKDAYS } from "@/lib/agenda";
 import { useStore, balanceLabel, slots, iso, type Student, type Category, type CourtSide } from "@/lib/store";
 import { CATEGORIES, COURT_SIDES, courtSideLabel } from "@/lib/player";
 import { canAddToLesson } from "@/lib/rules";
@@ -53,10 +53,10 @@ function Alumnos() {
             <div className="min-w-0 flex-1">
               <Button variant="ghost" aria-label={`Editar ${s.name}`} onClick={() => setEditing(s)} className="h-auto w-full justify-start px-0 py-1 text-lg font-bold"><span className="truncate">{s.name}</span><Pencil className="shrink-0 text-muted-foreground" /></Button>
               <div className="mt-1 flex flex-wrap gap-1.5">
-                <Tag>{s.type}</Tag><Tag>{s.pay}</Tag>
+                <Tag>{s.type}</Tag>
                 {s.category && <Tag>{s.category}</Tag>}
                 {s.courtSide && <Tag>{courtSideLabel(s.courtSide)}</Tag>}
-                {fixedSlot(s) && <Tag>{fixedSlot(s)}</Tag>}
+                {weeklySlotLabel(s) && <Tag>{weeklySlotLabel(s)}</Tag>}
               </div>
             </div>
             <div className="flex flex-col gap-1">
@@ -71,15 +71,6 @@ function Alumnos() {
     </>
   );
 }
-
-const DOW = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-
-/** The weekly slot as the teacher reads it, or null when the student has none. */
-const fixedSlot = (s: Student): string | null => {
-  if (s.recurringWeekday === null || s.recurringTime === null) return null;
-  const day = DOW[s.recurringWeekday];
-  return day ? `${day} ${s.recurringTime}` : null;
-};
 
 const Tag = ({ children }: { children: React.ReactNode }) => (
   <span className="rounded-md bg-court px-2 py-0.5 text-xs font-bold uppercase text-court-foreground">{children}</span>
@@ -166,7 +157,7 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
                 className="mt-1 h-12 w-full rounded-lg border-2 border-foreground bg-background px-3"
               >
                 <option value="">Sin horario fijo</option>
-                {DOW.map((day, index) => <option key={day} value={index}>{day}</option>)}
+                {WEEKDAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}
               </select>
             </label>
             <label className="block font-bold">Hora

@@ -1,4 +1,4 @@
-import { weekStartFor, matchesStudent } from "@/lib/agenda";
+import { weekStartFor, matchesStudent, weeklySlotLabel } from "@/lib/agenda";
 import { Sheet } from "@/components/Sheet";
 import { Button } from "@/components/ui/button";
 import { createFileRoute } from "@tanstack/react-router";
@@ -7,6 +7,7 @@ import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight } from "lucide-rea
 import { PageHeader } from "@/components/AppShell";
 import { canAddToLesson } from "@/lib/rules";
 import { useStore, slots, iso, addDays, balanceLabel, type Lesson, type Student, validSettings } from "@/lib/store";
+import { profileLabel } from "@/lib/player";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -29,6 +30,9 @@ const statusStyle: Record<Lesson["status"], string> = {
   ausente: "bg-destructive/10 border-destructive",
   cancelada: "bg-muted border-muted-foreground border-dashed opacity-70",
 };
+
+/** Everything the teacher may want to know before acting on a student. */
+const studentDetail = (s: Student) => [profileLabel(s), weeklySlotLabel(s)].filter(Boolean).join(" · ");
 
 /** How many different time slots of a day hold at least one active student. */
 const usedSlots = (lessons: Lesson[]) =>
@@ -192,6 +196,9 @@ function Agenda() {
       {acting && (
         <Sheet title={actingStudent?.name ?? "Alumno"} onClose={() => { setActing(null); setMoving(false); }}>
           <p className="mb-4 text-sm font-bold uppercase text-muted-foreground">{acting.date} · {acting.start} · {acting.status}</p>
+          {actingStudent && studentDetail(actingStudent) && (
+            <p className="mb-4 text-sm font-bold uppercase text-muted-foreground">{studentDetail(actingStudent)}</p>
+          )}
           {moving ? (
             <div className="space-y-3">
               <label className="block font-bold">Nuevo día
@@ -250,6 +257,7 @@ function StudentRow({ lesson, student, busy, onStatus, onActions }: {
   const cancelled = lesson.status === "cancelada";
   const name = student?.name ?? "Alumno";
   const owes = (student?.balance ?? 0) < 0;
+  const profile = student ? profileLabel(student) : "";
   const tone = cancelled ? "" : lesson.status === "presente" ? "bg-success/10" : lesson.status === "ausente" ? "bg-destructive/10" : "";
   const round = "grid h-9 w-9 shrink-0 place-items-center rounded-full";
 
@@ -273,6 +281,7 @@ function StudentRow({ lesson, student, busy, onStatus, onActions }: {
       ><X className="h-5 w-5" /></Button>
       <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={() => onActions(lesson)} className="flex h-9 min-w-0 flex-1 items-center gap-1.5 px-1 text-left">
         <span className={`truncate font-bold ${cancelled ? "text-muted-foreground line-through" : ""}`}>{name}</span>
+        {profile && <span className="shrink-0 text-xs font-bold text-muted-foreground">{profile}</span>}
         {owes && !cancelled && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
         {cancelled && <span className="shrink-0 text-xs font-bold uppercase text-muted-foreground">cancelada</span>}
       </Button>

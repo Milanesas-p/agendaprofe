@@ -18,3 +18,7 @@ export const courtSideLabel = (side: CourtSide): string => {
   if (side === "drive") return "Drive";
   return "Indistinto";
 };
+
+/** The compact line shown next to a name: "4ta · Revés", or "" when unset. */
+export const profileLabel = (profile: { category: Category | null; courtSide: CourtSide | null }): string =>
+  [profile.category, profile.courtSide ? courtSideLabel(profile.courtSide) : null].filter(Boolean).join(" · ");

@@ -1,3 +1,13 @@
+/** Full weekday names, 0 = Sunday, matching the stored `recurring_weekday`. */
+export const WEEKDAYS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"] as const;
+
+/** A student's weekly slot as the teacher reads it: "Viernes 14:00", or "". */
+export function weeklySlotLabel(s: { recurringWeekday: number | null; recurringTime: string | null }): string {
+  if (s.recurringWeekday === null || s.recurringTime === null) return "";
+  const day = WEEKDAYS[s.recurringWeekday];
+  return day ? `${day} ${s.recurringTime}` : "";
+}
+
 export function weekStartFor(date: string) {
   const d = new Date(`${date}T12:00:00`);
   d.setDate(d.getDate() - (d.getDay() + 6) % 7);

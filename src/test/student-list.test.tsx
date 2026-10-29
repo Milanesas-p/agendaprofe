@@ -87,4 +87,11 @@ describe("student list", () => {
 
     expect(screen.queryByText("Revés")).toBeNull();
   });
+
+  it("keeps payment out of the row: it belongs to the editor", () => {
+    store.students = [student({ pay: "semanal" })];
+    renderPage();
+
+    expect(screen.queryByText("semanal")).toBeNull();
+  });
 });

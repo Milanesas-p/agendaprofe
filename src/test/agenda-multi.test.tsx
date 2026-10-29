@@ -24,8 +24,8 @@ vi.mock("@/lib/store", async (importOriginal) => ({
 
 const today = iso(new Date());
 
-const student = (id: string, name: string, balance = 0) => ({
-  id, name, type: "fijo", pay: "mensual", phone: null, balance,
+const student = (id: string, name: string, balance = 0, over: Record<string, unknown> = {}) => ({
+  id, name, type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, balance, ...over,
 });
 
 const lesson = (id: string, studentId: string, status = "programada", start = "09:00") => ({
@@ -114,5 +114,27 @@ describe("agenda with several students in one class", () => {
 
     expect(screen.getByText("3 alumnos")).toBeTruthy();
     expect(screen.getByLabelText("Agregar alumno a las 09:00")).toBeTruthy();
+  });
+
+  it("shows the player profile on the row and again in the student sheet", () => {
+    store.students = [student("s1", "María Pérez", 0, { category: "4ta", courtSide: "reves", recurringWeekday: 5, recurringTime: "14:00" })];
+    store.lessons = [lesson("l1", "s1")];
+    renderAgenda();
+
+    expect(screen.getByText("4ta · Revés")).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText("Opciones de María Pérez"));
+
+    expect(screen.getByText("4ta · Revés · Viernes 14:00")).toBeTruthy();
+  });
+
+  it("shows no profile line for a student without one", () => {
+    store.students = [student("s1", "María Pérez")];
+    store.lessons = [lesson("l1", "s1")];
+    renderAgenda();
+
+    fireEvent.click(screen.getByLabelText("Opciones de María Pérez"));
+
+    expect(screen.queryByText(/4ta|Revés/)).toBeNull();
   });
 });
