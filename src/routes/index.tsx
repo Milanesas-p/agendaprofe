@@ -3,13 +3,14 @@ import { Sheet } from "@/components/Sheet";
 import { Button } from "@/components/ui/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight, ChevronDown, BarChart3, MessageCircle } from "lucide-react";
+import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight, ChevronDown, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { canAddToLesson } from "@/lib/rules";
 import { useStore, slots, iso, addDays, type Lesson, type Student } from "@/lib/store";
 import { profileLabel } from "@/lib/player";
 import { Tour } from "@/components/Tour";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { reminderText, whatsappLink } from "@/lib/whatsapp";
 
 export const Route = createFileRoute("/")({
@@ -111,7 +112,7 @@ function Agenda() {
         right={
           <div className="flex shrink-0 items-center gap-2">
             <Link to="/avisos" aria-label="Avisos" data-tour="notices" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
-              <MessageCircle className="h-5 w-5" />
+              <WhatsAppIcon className="h-5 w-5" />
             </Link>
             <Link to="/resumen" aria-label="Resumen" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
               <BarChart3 className="h-5 w-5" />
@@ -299,7 +300,7 @@ function Agenda() {
                       rel="noopener noreferrer"
                       onClick={() => { if (!acting.notified) void setNotified(acting.id, true).then((ok) => { if (ok) setActing({ ...acting, notified: true }); }); }}
                     >
-                      <MessageCircle className="h-4 w-4" /> Recordar por WhatsApp
+                      <WhatsAppIcon className="h-4 w-4" /> Recordar por WhatsApp
                     </a>
                   </Button>
                   <Button
@@ -471,7 +472,7 @@ function StudentRow({ lesson, student, busy, onStatus, onNotify, onActions }: {
                 onClick={tap(() => { if (!lesson.notified) void onNotify(lesson.id, true); })}
               >
                 <span className="relative">
-                  <MessageCircle className="h-5 w-5" />
+                  <WhatsAppIcon className="h-5 w-5" />
                   {lesson.notified && <Check className="absolute -bottom-1 -right-1 h-3 w-3" strokeWidth={3} />}
                 </span>
               </a>

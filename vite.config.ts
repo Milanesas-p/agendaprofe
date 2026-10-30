@@ -9,7 +9,7 @@ import { nitro } from "nitro/vite";
  * tunnel (`cloudflared tunnel --url http://localhost:3000`). `VITE_ALLOWED_HOSTS`
  * adds the hostnames to trust, comma separated, only for the dev server.
  */
-const tunnelHosts = (process.env.VITE_ALLOWED_HOSTS ?? "")
+const tunnelHosts = (process.env["VITE_ALLOWED_HOSTS"] ?? "")
   .split(",")
   .map((host) => host.trim())
   .filter(Boolean);

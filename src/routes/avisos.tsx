@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, MessageCircle } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { iso, useStore } from "@/lib/store";
 import {
   DEFAULT_NOTICE_TEMPLATE,
@@ -112,7 +113,7 @@ function Avisos() {
                             onClick={() => { if (!e.notified) void setNotified(e.lessonId, true); }}
                           >
                             <span className="relative">
-                              <MessageCircle className="h-5 w-5" />
+                              <WhatsAppIcon className="h-5 w-5" />
                               {e.notified && <Check className="absolute -bottom-1 -right-1 h-3 w-3" strokeWidth={3} />}
                             </span>
                           </a>
