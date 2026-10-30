@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, MessageCircle } from "lucide-react";
+import { ArrowLeft, Check, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { iso, useStore } from "@/lib/store";
 import {
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/avisos")({
 const TEMPLATE_MAX = 400;
 
 function Avisos() {
-  const { students, lessons, settings, setNoticeTemplate, busy } = useStore();
+  const { students, lessons, settings, setNoticeTemplate, setNotified, busy } = useStore();
   const saved = settings.noticeTemplate ?? DEFAULT_NOTICE_TEMPLATE;
   const [today, setToday] = useState("");
   const [draft, setDraft] = useState(saved);
@@ -103,9 +103,18 @@ function Avisos() {
                       <span className="w-12 shrink-0 text-sm font-semibold tabular-nums text-foreground">{e.start}</span>
                       <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground">{e.student.name}</span>
                       {link ? (
-                        <Button asChild variant="ghost" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-court hover:bg-court/10">
-                          <a href={link} target="_blank" rel="noopener noreferrer" aria-label={`Recordar por WhatsApp a ${e.student.name}`}>
-                            <MessageCircle className="h-5 w-5" />
+                        <Button asChild variant="ghost" className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${e.notified ? "bg-court/10 text-court" : "text-court hover:bg-court/10"}`}>
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={e.notified ? `Ya le avisaste a ${e.student.name}` : `Recordar por WhatsApp a ${e.student.name}`}
+                            onClick={() => { if (!e.notified) void setNotified(e.lessonId, true); }}
+                          >
+                            <span className="relative">
+                              <MessageCircle className="h-5 w-5" />
+                              {e.notified && <Check className="absolute -bottom-1 -right-1 h-3 w-3" strokeWidth={3} />}
+                            </span>
                           </a>
                         </Button>
                       ) : (

@@ -8,10 +8,11 @@ import { DEFAULT_NOTICE_TEMPLATE, dayLabel } from "@/lib/notices";
 const { store } = vi.hoisted(() => ({
   store: {
     students: [] as Array<{ id: string; name: string; phone: string | null; balance: number }>,
-    lessons: [] as Array<{ id: string; date: string; start: string; studentId: string; status: string }>,
+    lessons: [] as Array<{ id: string; date: string; start: string; studentId: string; status: string; notified?: boolean }>,
     settings: { startHour: 8, endHour: 17, blockMin: 60, breakStart: null, breakEnd: null, noticeTemplate: null as string | null },
     busy: false,
     setNoticeTemplate: vi.fn(),
+    setNotified: vi.fn(),
   },
 }));
 
@@ -49,8 +50,8 @@ const tomorrow = iso(addDays(new Date(), 1));
 const farAway = iso(addDays(new Date(), 5));
 
 const student = (id: string, name: string, phone: string | null = null) => ({ id, name, phone, balance: 0 });
-const lesson = (id: string, studentId: string, date: string, start = "13:00", status = "programada") => ({
-  id, studentId, date, start, status,
+const lesson = (id: string, studentId: string, date: string, start = "13:00", status = "programada", notified = false) => ({
+  id, studentId, date, start, status, notified,
 });
 
 function renderPage() {
@@ -122,5 +123,25 @@ describe("notices page", () => {
     renderPage();
 
     expect((screen.getByLabelText("Plantilla del aviso") as HTMLTextAreaElement).value).toBe(DEFAULT_NOTICE_TEMPLATE);
+  });
+
+  it("remembers the reminder sent from here too", () => {
+    store.students = [student("s1", "Maxi Salas", "5492302666351")];
+    store.lessons = [lesson("l1", "s1", tomorrow)];
+    renderPage();
+
+    fireEvent.click(screen.getByLabelText("Recordar por WhatsApp a Maxi Salas"));
+
+    expect(store.setNotified).toHaveBeenCalledWith("l1", true);
+  });
+
+  it("does not rewrite a class that was already notified", () => {
+    store.students = [student("s1", "Maxi Salas", "5492302666351")];
+    store.lessons = [lesson("l1", "s1", tomorrow, "13:00", "programada", true)];
+    renderPage();
+
+    fireEvent.click(screen.getByLabelText("Ya le avisaste a Maxi Salas"));
+
+    expect(store.setNotified).not.toHaveBeenCalled();
   });
 });

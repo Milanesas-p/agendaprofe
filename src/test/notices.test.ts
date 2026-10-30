@@ -90,4 +90,14 @@ describe("upcomingNotices", () => {
     expect(notices).toHaveLength(1);
     expect(notices[0]?.student.phone).toBeNull();
   });
+
+  it("carries the class id and whether it was already notified", () => {
+    const notices = upcomingNotices(
+      [{ ...lesson("a", "2026-10-31", "09:00", "s1"), notified: true }],
+      students,
+      "2026-10-30",
+    );
+    expect(notices[0]?.lessonId).toBe("a");
+    expect(notices[0]?.notified).toBe(true);
+  });
 });

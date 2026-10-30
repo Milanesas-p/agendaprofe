@@ -15,8 +15,15 @@ export const DEFAULT_NOTICE_TEMPLATE =
   "Buenas [nombre]! Te recuerdo tu clase del [dia] a las [hora]. Confirmame por favor.";
 
 export type NoticeStudent = { id: string; name: string; phone: string | null };
-export type NoticeLesson = { date: string; start: string; studentId: string; status: string };
-export type NoticeEntry<S extends NoticeStudent> = { date: string; start: string; student: S };
+export type NoticeLesson = { id: string; date: string; start: string; studentId: string; status: string; notified?: boolean };
+export type NoticeEntry<S extends NoticeStudent> = {
+  date: string;
+  start: string;
+  student: S;
+  /** The class this row is about, so the screen can remember the reminder was sent. */
+  lessonId: string;
+  notified: boolean;
+};
 
 /** Shifts a "YYYY-MM-DD" date without letting a timezone change the day. */
 function shiftDay(date: string, days: number): string {
@@ -77,7 +84,9 @@ export function upcomingNotices<S extends NoticeStudent>(
     .filter((l) => window.has(l.date) && l.status !== "cancelada")
     .flatMap((l) => {
       const student = byId.get(l.studentId);
-      return student ? [{ date: l.date, start: l.start, student }] : [];
+      return student
+        ? [{ date: l.date, start: l.start, student, lessonId: l.id, notified: Boolean(l.notified) }]
+        : [];
     })
     .sort(
       (a, b) =>
