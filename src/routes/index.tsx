@@ -154,10 +154,13 @@ function Agenda() {
           {blocks.map((t) => {
             const ls = dayLessons.filter((x) => x.start === t);
             const active = ls.filter((l) => l.status !== "cancelada");
+            const released = ls.length - active.length;
             const expanded = open.has(t);
+            // The released seat is worth saying out loud: a class that looks full
+            // because it shows four students still has room for a replacement.
             const count = active.length === 0
               ? (ls.length > 0 ? "Cancelada" : "Libre")
-              : active.length === 1 ? "1 alumno" : `${active.length} alumnos`;
+              : `${active.length === 1 ? "1 alumno" : `${active.length} alumnos`}${released > 0 ? ` · ${released} no va` : ""}`;
             return (
               <li key={t} className="flex gap-3">
                 <span className="w-12 shrink-0 pt-3 text-xl font-semibold leading-none tabular-nums text-foreground">{t}</span>

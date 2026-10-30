@@ -177,8 +177,9 @@ describe("agenda with several students in one class", () => {
     renderAgenda();
     expand();
 
-    expect(screen.getByText("3 alumnos")).toBeTruthy();
+    expect(screen.getByText("3 alumnos · 1 no va")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Agregar alumno/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "09:00, 3 alumnos · 1 no va" })).toBeTruthy();
   });
 
   it("says Cancelada when the only student of the slot released it", () => {
