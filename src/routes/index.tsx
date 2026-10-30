@@ -85,6 +85,9 @@ function Agenda() {
         title="Agenda"
         right={
           <div className="flex shrink-0 items-center gap-2">
+            <Link to="/avisos" aria-label="Avisos" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
+              <MessageCircle className="h-5 w-5" />
+            </Link>
             <Link to="/resumen" aria-label="Resumen" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
               <BarChart3 className="h-5 w-5" />
             </Link>

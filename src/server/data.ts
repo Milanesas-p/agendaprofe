@@ -43,15 +43,26 @@ export type SettingsDto = {
   /** Optional daily break, both sides together or both null. */
   breakStart: number | null;
   breakEnd: number | null;
+  /** Bulk notice template; null means the client uses the factory one. */
+  noticeTemplate: string | null;
 };
 
 export type Snapshot = { students: StudentDto[]; lessons: LessonDto[]; settings: SettingsDto };
 
-const DEFAULT_SETTINGS: SettingsDto = { startHour: 8, endHour: 22, blockMin: 60, breakStart: null, breakEnd: null };
+const DEFAULT_SETTINGS: SettingsDto = {
+  startHour: 8,
+  endHour: 22,
+  blockMin: 60,
+  breakStart: null,
+  breakEnd: null,
+  noticeTemplate: null,
+};
 
 const STATUSES: readonly ClassStatus[] = ["programada", "presente", "ausente", "cancelada"];
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+/** Mirrors the column width, so MySQL never silently truncates a template. */
+const NOTICE_TEMPLATE_MAX = 400;
 
 /** Every query is scoped by the session user; the client never supplies an owner. */
 async function requireUserId(): Promise<string> {
@@ -156,10 +167,19 @@ function rowId(value: unknown): string {
 
 async function readSettings(ownerId: string): Promise<SettingsDto> {
   const [rows] = await db().execute(
-    "SELECT start_hour, end_hour, block_min, break_start, break_end FROM court_settings WHERE owner_id = ?",
+    "SELECT start_hour, end_hour, block_min, break_start, break_end, notice_template FROM court_settings WHERE owner_id = ?",
     [ownerId],
   );
-  const row = (rows as Array<{ start_hour: number; end_hour: number; block_min: number; break_start: number | null; break_end: number | null }>)[0];
+  const row = (
+    rows as Array<{
+      start_hour: number;
+      end_hour: number;
+      block_min: number;
+      break_start: number | null;
+      break_end: number | null;
+      notice_template: string | null;
+    }>
+  )[0];
   if (!row) return DEFAULT_SETTINGS;
   return {
     startHour: row.start_hour,
@@ -167,6 +187,7 @@ async function readSettings(ownerId: string): Promise<SettingsDto> {
     blockMin: row.block_min,
     breakStart: row.break_start ?? null,
     breakEnd: row.break_end ?? null,
+    noticeTemplate: row.notice_template ?? null,
   };
 }
 
@@ -526,7 +547,7 @@ export const saveSettings = createServerFn({ method: "POST" })
     const raw = (input ?? {}) as Record<string, unknown>;
     const breakStart = optionalInteger(raw["breakStart"], "inicio del corte");
     const breakEnd = optionalInteger(raw["breakEnd"], "fin del corte");
-    const settings: SettingsDto = {
+    const settings = {
       startHour: integer(raw["startHour"], "hora de inicio"),
       endHour: integer(raw["endHour"], "hora de fin"),
       blockMin: integer(raw["blockMin"], "duración"),
@@ -555,4 +576,29 @@ export const saveSettings = createServerFn({ method: "POST" })
         [ownerId, data.startHour, data.endHour, data.blockMin, data.breakStart, data.breakEnd],
       );
     });
+  });
+
+/**
+ * The bulk notice template. An empty template clears it, so the client falls back
+ * to the factory text; the column is NULL rather than "" for the same reason.
+ */
+export const saveNoticeTemplate = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const raw = (input ?? {}) as Record<string, unknown>;
+    const value = raw["template"];
+    if (value !== null && typeof value !== "string") throw new Error("La plantilla del aviso no es válida.");
+    const template = (value ?? "").trim();
+    if (template.length > NOTICE_TEMPLATE_MAX) {
+      throw new Error(`La plantilla no puede pasar de ${NOTICE_TEMPLATE_MAX} caracteres.`);
+    }
+    return { template: template === "" ? null : template };
+  })
+  .handler(async ({ data }): Promise<string | null> => {
+    const ownerId = await requireUserId();
+    await db().execute(
+      `INSERT INTO court_settings (owner_id, notice_template) VALUES (?, ?) AS incoming
+       ON DUPLICATE KEY UPDATE notice_template = incoming.notice_template`,
+      [ownerId, data.template],
+    );
+    return data.template;
   });

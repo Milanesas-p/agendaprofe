@@ -8,6 +8,7 @@ import {
   materializeRecurring as materializeRecurringFn,
   moveLesson as moveLessonFn,
   saveSettings as saveSettingsFn,
+  saveNoticeTemplate as saveNoticeTemplateFn,
   setLessonStatus as setLessonStatusFn,
   updateStudent as updateStudentFn,
   updateProfile as updateProfileFn,
@@ -44,6 +45,8 @@ export type Settings = {
   /** Optional daily break: both sides together, or both null. */
   breakStart: number | null;
   breakEnd: number | null;
+  /** Bulk notice template, or null for the factory one. */
+  noticeTemplate: string | null;
 };
 export const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 export const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -66,10 +69,15 @@ type Ctx = State & {
   adjustBalance: (id: string, delta: number) => Promise<boolean>;
   moveLesson: (id: string, target: { date: string; start: string }) => Promise<boolean>;
   setSettings: (s: Settings) => Promise<boolean>;
+  setNoticeTemplate: (template: string) => Promise<boolean>;
   updateProfile: (name: string) => Promise<boolean>;
 };
 
-const empty: State = { students: [], lessons: [], settings: { startHour: 8, endHour: 22, blockMin: 60, breakStart: null, breakEnd: null } };
+const empty: State = {
+  students: [],
+  lessons: [],
+  settings: { startHour: 8, endHour: 22, blockMin: 60, breakStart: null, breakEnd: null, noticeTemplate: null },
+};
 const C = createContext<Ctx | null>(null);
 
 const messageOf = (error: unknown, fallback: string) =>
@@ -198,6 +206,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }, "No se pudo guardar el alumno."),
     adjustBalance: (id, delta) =>
       changed(() => adjustBalanceFn({ data: { id, delta } }), "No se pudo ajustar el saldo."),
+    setNoticeTemplate: (template) =>
+      changed(() => saveNoticeTemplateFn({ data: { template } }), "No se pudo guardar la plantilla del aviso."),
     moveLesson: (id, target) =>
       changed(() => moveLessonFn({ data: { id, date: target.date, start: target.start } }), "No se pudo mover la clase."),
     updateProfile: async (name) => {

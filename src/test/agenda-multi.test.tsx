@@ -166,6 +166,12 @@ describe("agenda with several students in one class", () => {
 describe("WhatsApp reminder from the agenda", () => {
   const withPhone = { phone: "5492302666351" };
 
+  it("offers a shortcut to the notices screen", () => {
+    renderAgenda();
+
+    expect(screen.getByLabelText("Avisos").getAttribute("href")).toBe("/avisos");
+  });
+
   it("offers the reminder only to a student with a phone", () => {
     store.students = [student("s1", "María Pérez", 0, withPhone), student("s2", "Juan Gómez")];
     store.lessons = [lesson("l1", "s1"), lesson("l2", "s2")];

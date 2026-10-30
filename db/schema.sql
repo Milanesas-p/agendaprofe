@@ -98,6 +98,10 @@ CREATE TABLE court_settings (
   -- (e.g. 8-17 with a 12-14 break). Both sides are set together.
   break_start INT     NULL,
   break_end   INT     NULL,
+  -- Template for the bulk WhatsApp notices, with [nombre] [dia] [hora].
+  -- NULL means "use the factory template", so a row saved before this column
+  -- existed keeps working without a backfill.
+  notice_template VARCHAR(400) NULL,
   PRIMARY KEY (owner_id),
   CONSTRAINT settings_start CHECK (start_hour BETWEEN 0 AND 23),
   CONSTRAINT settings_end CHECK (end_hour BETWEEN 1 AND 24),
