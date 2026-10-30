@@ -19,6 +19,9 @@ CREATE TABLE users (
   -- Shown in the app header. Set when the account is provisioned or from the
   -- settings screen; the email is still the identity.
   display_name  VARCHAR(120) NULL,
+  -- NULL until the welcome tour is finished or skipped: the tour only shows on
+  -- the first sessions of an account.
+  tour_done_at  TIMESTAMP    NULL,
   created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY users_email (email)

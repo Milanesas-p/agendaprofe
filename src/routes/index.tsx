@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/AppShell";
 import { canAddToLesson } from "@/lib/rules";
 import { useStore, slots, iso, addDays, type Lesson, type Student } from "@/lib/store";
 import { profileLabel } from "@/lib/player";
+import { Tour } from "@/components/Tour";
 import { reminderText, whatsappLink } from "@/lib/whatsapp";
 
 export const Route = createFileRoute("/")({
@@ -80,12 +81,13 @@ function Agenda() {
 
   return (
     <>
+      <Tour />
       <PageHeader
         sub="Tu cancha hoy"
         title="Agenda"
         right={
           <div className="flex shrink-0 items-center gap-2">
-            <Link to="/avisos" aria-label="Avisos" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
+            <Link to="/avisos" aria-label="Avisos" data-tour="notices" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
               <MessageCircle className="h-5 w-5" />
             </Link>
             <Link to="/resumen" aria-label="Resumen" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
@@ -106,7 +108,7 @@ function Agenda() {
           ))}
         </div>
         <div className="flex items-center justify-between"><Button variant="ghost" aria-label="Semana anterior" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), -7)); setWeekStart(k); setDay(k); }}><ChevronLeft /></Button><span className="text-sm font-semibold text-foreground">{day ? new Date(day + "T12:00:00").toLocaleDateString("es-AR", { month: "long", year: "numeric" }) : "Agenda"}</span><Button variant="ghost" aria-label="Semana siguiente" onClick={() => { const k = iso(addDays(new Date(weekStart + "T12:00:00"), 7)); setWeekStart(k); setDay(k); }}><ChevronRight /></Button></div>
-        <div className="flex items-center gap-2"><input type="date" aria-label="Fecha de la agenda" value={day} onChange={e => { if(e.target.value) selectDate(e.target.value); }} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm font-semibold" /><Button variant="outline" onClick={() => selectDate(iso(new Date()))} className="h-10">Hoy</Button></div>
+        <div data-tour="date" className="flex items-center gap-2"><input type="date" aria-label="Fecha de la agenda" value={day} onChange={e => { if(e.target.value) selectDate(e.target.value); }} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm font-semibold" /><Button variant="outline" onClick={() => selectDate(iso(new Date()))} className="h-10">Hoy</Button></div>
         <div className="flex gap-2 overflow-x-auto">
           {week.map((d) => {
             const k = iso(d);

@@ -14,7 +14,7 @@ import {
   updateStudent as updateStudentFn,
   updateProfile as updateProfileFn,
 } from "@/server/data";
-import { getCurrentUser, loginUser, logoutUser, type AuthUser } from "@/server/auth";
+import { completeTour, getCurrentUser, loginUser, logoutUser, type AuthUser } from "@/server/auth";
 import { balanceDelta, slots, validSettings, type ClassStatus } from "./rules";
 import type { Category, CourtSide } from "./player";
 
@@ -83,6 +83,8 @@ type Ctx = State & {
   setNoticeTemplate: (template: string) => Promise<boolean>;
   importStudents: (rows: ImportedStudent[]) => Promise<number | false>;
   updateProfile: (name: string) => Promise<boolean>;
+  /** Closes the welcome tour and remembers it for this account. */
+  finishTour: () => Promise<boolean>;
 };
 
 const empty: State = {
@@ -234,6 +236,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       changed(() => saveNoticeTemplateFn({ data: { template } }), "No se pudo guardar la plantilla del aviso."),
     moveLesson: (id, target) =>
       changed(() => moveLessonFn({ data: { id, date: target.date, start: target.start } }), "No se pudo mover la clase."),
+    finishTour: async () => {
+      if (!user) return false;
+      let saved = true;
+      try {
+        await completeTour();
+      } catch (error) {
+        saved = false;
+        toast.error(messageOf(error, "No se pudo guardar el tour."));
+      }
+      // The tour closes either way: never trap the teacher inside it because a
+      // request failed.
+      setUser({ ...user, tourDone: true });
+      return saved;
+    },
     updateProfile: async (name) => {
       if (!user) { toast.error("Iniciá sesión para guardar tus cambios."); return false; }
       setBusy(true);

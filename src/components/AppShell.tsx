@@ -43,6 +43,7 @@ export function AppShell() {
             <Link
               to="/nueva-clase"
               aria-label="Nueva clase"
+              data-tour="add"
               className="grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_2px_8px_rgba(28,28,26,0.18)] transition-opacity active:opacity-85"
             >
               <Plus className="h-6 w-6" />
@@ -52,6 +53,7 @@ export function AppShell() {
             <Link
               to="/alumnos"
               activeOptions={{ exact: true }}
+              data-tour="students"
               className="flex h-16 flex-col items-center justify-center gap-1 text-muted-foreground data-[status=active]:text-foreground"
             >
               <Users className="h-6 w-6" strokeWidth={1.75} />

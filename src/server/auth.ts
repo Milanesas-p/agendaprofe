@@ -10,7 +10,7 @@ export type { AuthUser };
 
 type Credentials = { email: string; password: string };
 
-type UserRow = { id: string; email: string; display_name: string | null; password_hash: string };
+type UserRow = { id: string; email: string; display_name: string | null; password_hash: string; tour_done_at: string | null };
 
 function readCredentials(input: unknown): Credentials {
   const raw = (input ?? {}) as Record<string, unknown>;
@@ -35,7 +35,7 @@ async function startSession(userId: string): Promise<void> {
 export const loginUser = createServerFn({ method: "POST" })
   .validator(readCredentials)
   .handler(async ({ data }): Promise<AuthUser> => {
-    const [rows] = await db().execute("SELECT id, email, display_name, password_hash FROM users WHERE email = ?", [
+    const [rows] = await db().execute("SELECT id, email, display_name, password_hash, tour_done_at FROM users WHERE email = ?", [
       data.email,
     ]);
     const row = (rows as UserRow[])[0];
@@ -43,7 +43,7 @@ export const loginUser = createServerFn({ method: "POST" })
       throw new Error("Correo o contraseña incorrectos.");
     }
     await startSession(row.id);
-    return { id: row.id, email: row.email, name: row.display_name ?? null };
+    return { id: row.id, email: row.email, name: row.display_name ?? null, tourDone: row.tour_done_at !== null };
   });
 
 export const logoutUser = createServerFn({ method: "POST" }).handler(async (): Promise<null> => {
@@ -58,3 +58,13 @@ export const logoutUser = createServerFn({ method: "POST" }).handler(async (): P
 export const getCurrentUser = createServerFn({ method: "GET" }).handler(
   async (): Promise<AuthUser | null> => findSessionUser(),
 );
+
+/**
+ * Marks the welcome tour as done. It never moves backwards: the first completion
+ * wins, so a retried request cannot make the tour show up again.
+ */
+export const completeTour = createServerFn({ method: "POST" }).handler(async (): Promise<void> => {
+  const user = await findSessionUser();
+  if (!user) throw new Error("Iniciá sesión para guardar tus cambios.");
+  await db().execute("UPDATE users SET tour_done_at = COALESCE(tour_done_at, NOW()) WHERE id = ?", [user.id]);
+});
