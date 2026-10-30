@@ -27,6 +27,7 @@ Estado: **implementado**. Branch: `migracion-node-mysql`. Runner: `npm test` (Vi
 
 ## Log
 
+- **L4** — *"revise lo del tutorial, y no marca los botones o el lugar especifico que esta hablando"*. Reproducido en Chrome real: el anillo existía, pero el velo plano al 55% oscurecía también el control, así que no se distinguía nada; y en el paso 1 el globo puede montarse antes de que exista el ancla, y el destacado no aparecía nunca. Arreglado: el velo ahora se pinta como una sombra enorme alrededor de un hueco, así el control queda a brillo real; el globo salta a la mitad opuesta (arriba si el control está abajo); y la medición reintenta por rAF hasta encontrar el ancla. 194 tests, `tsc` limpio, build OK.
 - **L2** — Implementado y probado en Chrome real a 420px: con `tour_done_at` en NULL apareció el globo 1 de 4 con el recuadro verde sobre el selector de fecha; los pasos 2, 3 y 4 quedaron sobre el botón de alta, el ícono de avisos y "Alumnos". "Entendido" cerró, la columna quedó escrita y tras recargar el tour no volvió. Cero errores de consola. 191 tests en 30 archivos, `tsc` limpio, build OK.
 - **L2 (decisiones menores)** — El destacado se dibuja con `box-shadow` y un anillo, así que no hay recortes ni cuatro copias del árbol. La capa es modal: durante el tour no se puede tocar la agenda, para que los pasos tengan sentido en orden.
 - **L1** — *"importar alumnos y tour guiado me sirve. Que el tour unicamente se active si el sistema detecta que es la primera vez q inicia sesion"*.
