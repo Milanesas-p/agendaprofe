@@ -3,11 +3,12 @@ import { Sheet } from "@/components/Sheet";
 import { Button } from "@/components/ui/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight, BarChart3 } from "lucide-react";
+import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight, BarChart3, MessageCircle } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { canAddToLesson } from "@/lib/rules";
 import { useStore, slots, iso, addDays, type Lesson, type Student } from "@/lib/store";
 import { profileLabel } from "@/lib/player";
+import { reminderText, whatsappLink } from "@/lib/whatsapp";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -57,6 +58,9 @@ function Agenda() {
   const dayLessons = lessons.filter((l) => l.date === day);
   const blocks = slots(settings);
   const actingStudent = acting ? sOf(acting.studentId) : undefined;
+  const actingReminder = acting && actingStudent && acting.status !== "cancelada"
+    ? whatsappLink(actingStudent.phone, reminderText(acting.start))
+    : null;
   // Target slots for a move: within the blocks, with room, and not a slot this
   // student already has that day.
   const moveSlots = acting && moveDate
@@ -223,6 +227,13 @@ function Agenda() {
             </div>
           ) : (
             <div className="space-y-2">
+              {actingReminder && (
+                <Button asChild variant="outline" className="h-12 w-full">
+                  <a href={actingReminder} target="_blank" rel="noopener noreferrer">
+                    <MessageCircle className="h-4 w-4" /> Recordar por WhatsApp
+                  </a>
+                </Button>
+              )}
               {acting.status === "programada" && (
                 <Button variant="outline" onClick={() => setMoving(true)} className="h-12 w-full">Mover esta clase</Button>
               )}
@@ -255,6 +266,8 @@ function StudentRow({ lesson, student, busy, onStatus, onActions }: {
   const profile = student ? profileLabel(student) : "";
   const tone = cancelled ? "" : lesson.status === "presente" ? "bg-court/5" : lesson.status === "ausente" ? "bg-destructive/5" : "";
   const round = "grid h-10 w-10 shrink-0 place-items-center rounded-full";
+  // Nothing to remember when the class is cancelled or the student has no phone.
+  const reminder = cancelled ? null : whatsappLink(student?.phone, reminderText(lesson.start));
 
   return (
     <li className={`flex items-center gap-1.5 border-b border-border/60 px-2 py-1.5 last:border-b-0 ${tone}`}>
@@ -280,6 +293,13 @@ function StudentRow({ lesson, student, busy, onStatus, onActions }: {
         {owes && !cancelled && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
         {cancelled && <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">cancelada</span>}
       </Button>
+      {reminder && (
+        <Button asChild variant="ghost" className={`${round} text-court hover:bg-court/10`}>
+          <a href={reminder} target="_blank" rel="noopener noreferrer" aria-label={`Recordar por WhatsApp a ${name}`}>
+            <MessageCircle className="h-5 w-5" />
+          </a>
+        </Button>
+      )}
     </li>
   );
 }

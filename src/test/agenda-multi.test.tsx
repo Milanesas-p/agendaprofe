@@ -162,3 +162,40 @@ describe("agenda with several students in one class", () => {
     expect(screen.getAllByLabelText("Debe clases")).toHaveLength(1);
   });
 });
+
+describe("WhatsApp reminder from the agenda", () => {
+  const withPhone = { phone: "5492302666351" };
+
+  it("offers the reminder only to a student with a phone", () => {
+    store.students = [student("s1", "María Pérez", 0, withPhone), student("s2", "Juan Gómez")];
+    store.lessons = [lesson("l1", "s1"), lesson("l2", "s2")];
+    renderAgenda();
+
+    const link = screen.getByLabelText("Recordar por WhatsApp a María Pérez");
+    expect(link.getAttribute("href")).toBe(
+      `https://wa.me/5492302666351?text=${encodeURIComponent("Buenas! Te recuerdo tu clase de las 09:00. Confirmame por favor.")}`,
+    );
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(screen.queryByLabelText("Recordar por WhatsApp a Juan Gómez")).toBeNull();
+  });
+
+  it("repeats the reminder in the student sheet", () => {
+    store.students = [student("s1", "María Pérez", 0, withPhone)];
+    store.lessons = [lesson("l1", "s1")];
+    renderAgenda();
+
+    fireEvent.click(screen.getByLabelText("Opciones de María Pérez"));
+
+    // The sheet hides the row from the accessibility tree, so this link is the sheet's.
+    const link = screen.getByRole("link", { name: "Recordar por WhatsApp" });
+    expect(link.getAttribute("href")).toContain("https://wa.me/5492302666351?text=");
+  });
+
+  it("says nothing to remind about a cancelled class", () => {
+    store.students = [student("s1", "María Pérez", 0, withPhone)];
+    store.lessons = [lesson("l1", "s1", "cancelada")];
+    renderAgenda();
+
+    expect(screen.queryByLabelText("Recordar por WhatsApp a María Pérez")).toBeNull();
+  });
+});
