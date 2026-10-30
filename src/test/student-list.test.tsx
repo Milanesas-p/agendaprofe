@@ -16,6 +16,15 @@ const { store } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ to, activeOptions: _activeOptions, children, ...rest }: Record<string, unknown>) => (
+      <a href={String(to)} {...rest}>{children as React.ReactNode}</a>
+    ),
+  };
+});
 vi.mock("@/lib/store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/store")>()),
   useStore: () => store,
@@ -99,5 +108,10 @@ describe("student list", () => {
     renderPage();
 
     expect(screen.queryByText("semanal")).toBeNull();
+  });
+  it("offers the import shortcut next to a new student", () => {
+    renderPage();
+
+    expect(screen.getByLabelText("Importar alumnos").getAttribute("href")).toBe("/importar");
   });
 });

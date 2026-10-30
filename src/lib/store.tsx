@@ -9,6 +9,7 @@ import {
   moveLesson as moveLessonFn,
   saveSettings as saveSettingsFn,
   saveNoticeTemplate as saveNoticeTemplateFn,
+  importStudents as importStudentsFn,
   setLessonStatus as setLessonStatusFn,
   updateStudent as updateStudentFn,
   updateProfile as updateProfileFn,
@@ -36,6 +37,16 @@ export type Student = {
   recurringWeekday: number | null;
   recurringTime: string | null;
   balance: number;
+};
+export type ImportedStudent = {
+  name: string;
+  phone: string | null;
+  type: StudentType;
+  pay: PayMode;
+  category: Category | null;
+  courtSide: CourtSide | null;
+  recurringWeekday: number | null;
+  recurringTime: string | null;
 };
 export type Lesson = { id: string; date: string; start: string; studentId: string; status: ClassStatus };
 export type Settings = {
@@ -70,6 +81,7 @@ type Ctx = State & {
   moveLesson: (id: string, target: { date: string; start: string }) => Promise<boolean>;
   setSettings: (s: Settings) => Promise<boolean>;
   setNoticeTemplate: (template: string) => Promise<boolean>;
+  importStudents: (rows: ImportedStudent[]) => Promise<number | false>;
   updateProfile: (name: string) => Promise<boolean>;
 };
 
@@ -206,6 +218,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }, "No se pudo guardar el alumno."),
     adjustBalance: (id, delta) =>
       changed(() => adjustBalanceFn({ data: { id, delta } }), "No se pudo ajustar el saldo."),
+    importStudents: async (rows) => {
+      if (rows.length === 0) return false;
+      const count = await commit(
+        async () => {
+          const total = await importStudentsFn({ data: { students: rows } });
+          if (rows.some((r) => r.recurringWeekday !== null)) await afterScheduleChange();
+          return total;
+        },
+        "No se pudieron importar los alumnos.",
+      );
+      return typeof count === "number" ? count : false;
+    },
     setNoticeTemplate: (template) =>
       changed(() => saveNoticeTemplateFn({ data: { template } }), "No se pudo guardar la plantilla del aviso."),
     moveLesson: (id, target) =>

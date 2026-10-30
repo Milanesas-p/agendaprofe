@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Minus, UserPlus, Search, Pencil } from "lucide-react";
+import { Plus, Minus, UserPlus, Search, Pencil, Upload } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Sheet } from "@/components/Sheet";
 import { matchesStudent, weeklySlotLabel, WEEKDAYS } from "@/lib/agenda";
@@ -35,7 +35,12 @@ function Alumnos() {
   return (
     <>
       <PageHeader sub={`${students.length} alumnos`} title="Alumnos" right={
-        <Button variant="ghost" onClick={() => setNuevo(true)} aria-label="Nuevo alumno" className="grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground"><UserPlus className="h-6 w-6" /></Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link to="/importar" aria-label="Importar alumnos" className="grid h-12 w-12 place-items-center rounded-full bg-muted text-foreground">
+            <Upload className="h-5 w-5" />
+          </Link>
+          <Button variant="ghost" onClick={() => setNuevo(true)} aria-label="Nuevo alumno" className="grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground"><UserPlus className="h-6 w-6" /></Button>
+        </div>
       } />
       <label className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-border bg-card px-3">
         <Search className="h-5 w-5 shrink-0 text-muted-foreground" />

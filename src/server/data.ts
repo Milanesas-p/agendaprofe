@@ -579,6 +579,56 @@ export const saveSettings = createServerFn({ method: "POST" })
   });
 
 /**
+ * Creates many students in one transaction, all owned by the session user.
+ *
+ * The rows were already validated and previewed on the client; this repeats the
+ * same field checks so a hand-made request cannot skip them.
+ */
+export const importStudents = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const raw = (input ?? {}) as Record<string, unknown>;
+    const list = raw["students"];
+    if (!Array.isArray(list) || list.length === 0) throw new Error("No hay alumnos para importar.");
+    if (list.length > 200) throw new Error("Importá hasta 200 alumnos por vez.");
+    return {
+      students: list.map((item) => {
+        const student = (item ?? {}) as Record<string, unknown>;
+        return {
+          name: text(student["name"], "nombre", 120),
+          type: oneOf(student["type"], ["fijo", "rotativo"] as const, "tipo"),
+          pay: oneOf(student["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
+          phone: normalizePhone(student["phone"]),
+          ...playerProfile(student),
+          ...recurringSlot(student),
+        };
+      }),
+    };
+  })
+  .handler(async ({ data }): Promise<number> => {
+    const ownerId = await requireUserId();
+    await withTransaction(async (connection) => {
+      for (const student of data.students) {
+        await connection.execute(
+          "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, recurring_weekday, recurring_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+          [
+            randomUUID(),
+            ownerId,
+            student.name,
+            student.type,
+            student.pay,
+            student.phone,
+            student.category,
+            student.courtSide,
+            student.weekday,
+            student.time,
+          ],
+        );
+      }
+    });
+    return data.students.length;
+  });
+
+/**
  * The bulk notice template. An empty template clears it, so the client falls back
  * to the factory text; the column is NULL rather than "" for the same reason.
  */

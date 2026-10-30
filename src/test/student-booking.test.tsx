@@ -7,6 +7,15 @@ const { store } = vi.hoisted(() => ({ store: {
   settings: { startHour: 8, endHour: 22, blockMin: 60 }, busy: false, loading: false,
   addStudent: vi.fn(), updateStudent: vi.fn(), addLesson: vi.fn(), adjustBalance: vi.fn(),
 } }));
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ to, activeOptions: _activeOptions, children, ...rest }: Record<string, unknown>) => (
+      <a href={String(to)} {...rest}>{children as React.ReactNode}</a>
+    ),
+  };
+});
 vi.mock("@/lib/store", async importOriginal => ({ ...await importOriginal<typeof import("@/lib/store")>(), useStore: () => store }));
 vi.mock("@/server/data", () => ({
   getSnapshot: vi.fn(), addStudent: vi.fn(), updateStudent: vi.fn(), addLesson: vi.fn(),
