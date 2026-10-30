@@ -2,8 +2,9 @@ import { weekStartFor, matchesStudent, weeklySlotLabel } from "@/lib/agenda";
 import { Sheet } from "@/components/Sheet";
 import { Button } from "@/components/ui/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight, BarChart3, MessageCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, X, Plus, Settings2, ChevronLeft, ChevronRight, ChevronDown, BarChart3, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { canAddToLesson } from "@/lib/rules";
 import { useStore, slots, iso, addDays, type Lesson, type Student } from "@/lib/store";
@@ -28,9 +29,19 @@ export const Route = createFileRoute("/")({
 const DOW = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const statusStyle: Record<Lesson["status"], string> = {
   programada: "bg-muted text-muted-foreground",
+  confirmado: "bg-foreground/10 text-foreground",
   presente: "bg-court/10 text-court",
   ausente: "bg-destructive/10 text-destructive",
   cancelada: "bg-muted text-muted-foreground line-through",
+};
+
+/** The dot that hints, in a closed row, how each student of the block stands. */
+const statusDot: Record<Lesson["status"], string> = {
+  programada: "bg-muted-foreground/60",
+  confirmado: "bg-foreground",
+  presente: "bg-court",
+  ausente: "bg-destructive",
+  cancelada: "bg-muted-foreground/30",
 };
 
 /** Everything the teacher may want to know before acting on a student. */
@@ -41,7 +52,7 @@ const usedSlots = (lessons: Lesson[]) =>
   new Set(lessons.filter((l) => l.status !== "cancelada").map((l) => l.start)).size;
 
 function Agenda() {
-  const { lessons, students, settings, setStatus, addLesson, moveLesson, busy } = useStore();
+  const { lessons, students, settings, setStatus, setNotified, addLesson, moveLesson, busy } = useStore();
   const [view, setView] = useState<"dia" | "semana">("dia");
   const [day, setDay] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
@@ -49,10 +60,22 @@ function Agenda() {
   const [moving, setMoving] = useState(false);
   const [moveDate, setMoveDate] = useState("");
   const [moveStart, setMoveStart] = useState("");
+  // Closed by default: the day is a list of hours, and a block only reveals its
+  // students (and its edits) once the teacher opens it.
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
 
   const [weekStart, setWeekStart] = useState("");
   const [search, setSearch] = useState("");
   useEffect(() => { const today = iso(new Date()); setDay(today); setWeekStart(weekStartFor(today)); }, []);
+  // Another day is another list: nothing stays open from the previous one.
+  useEffect(() => { setOpen(new Set()); }, [day]);
+  const toggleSlot = (t: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t);
+      else next.add(t);
+      return next;
+    });
   const selectDate = (date: string) => { setDay(date); setWeekStart(weekStartFor(date)); };
   const week = weekStart ? Array.from({ length: 7 }, (_, i) => addDays(new Date(weekStart + "T12:00:00"), i)) : [];
   const sOf = (id: string) => students.find((s) => s.id === id);
@@ -129,35 +152,70 @@ function Agenda() {
         <ul className="space-y-3 p-4">
           {blocks.map((t) => {
             const ls = dayLessons.filter((x) => x.start === t);
-            if (ls.length === 0) {
-              return (
-                <li key={t} className="flex gap-3">
-                  <span className="w-12 shrink-0 pt-3 text-xl font-semibold leading-none tabular-nums text-foreground">{t}</span>
-                  <Button variant="ghost" onClick={() => { setSearch(""); setAdding(t); }} className="flex h-16 flex-1 items-center gap-4 rounded-xl border border-dashed border-court/40 bg-court/5 px-4 text-left">
-                    <span className="flex-1 text-sm font-semibold text-court">Libre</span>
-                    <Plus className="h-5 w-5 text-court" />
-                  </Button>
-                </li>
-              );
-            }
-            const active = ls.filter((l) => l.status !== "cancelada").length;
+            const active = ls.filter((l) => l.status !== "cancelada");
+            const expanded = open.has(t);
+            const count = active.length === 0
+              ? (ls.length > 0 ? "Cancelada" : "Libre")
+              : active.length === 1 ? "1 alumno" : `${active.length} alumnos`;
             return (
               <li key={t} className="flex gap-3">
-                <span className="w-12 shrink-0 pt-2 text-xl font-semibold leading-none tabular-nums text-foreground">{t}</span>
-                <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
-                  <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {active === 1 ? "1 alumno" : `${active} alumnos`}
+                <span className="w-12 shrink-0 pt-3 text-xl font-semibold leading-none tabular-nums text-foreground">{t}</span>
+                <div
+                  className={`min-w-0 flex-1 overflow-hidden rounded-xl border ${
+                    active.length === 0 ? "border-dashed border-court/40 bg-court/5" : "border-border bg-card"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    aria-expanded={expanded}
+                    aria-label={`${t}, ${count}`}
+                    onClick={() => toggleSlot(t)}
+                    className="flex w-full items-center gap-2 px-3 py-3 text-left"
+                  >
+                    <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${active.length === 0 ? "text-court" : "text-foreground"}`}>
+                      {count}
                     </span>
-                    {canAddToLesson(active) && (
-                      <Button variant="ghost" aria-label={`Agregar alumno a las ${t}`} onClick={() => { setSearch(""); setAdding(t); }} className="grid h-8 w-8 place-items-center rounded-full bg-muted text-foreground hover:bg-border"><Plus className="h-4 w-4" /></Button>
+                    {active.length > 0 && (
+                      <span aria-hidden className="flex shrink-0 items-center gap-1">
+                        {active.map((l) => (
+                          <i key={l.id} className={`h-2 w-2 rounded-full ${statusDot[l.status]}`} />
+                        ))}
+                      </span>
                     )}
-                  </div>
-                  <ul>
-                    {ls.map((l) => (
-                      <StudentRow key={l.id} lesson={l} student={sOf(l.studentId)} busy={busy} onStatus={setStatus} onActions={openActions} />
-                    ))}
-                  </ul>
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+                  </button>
+                  {expanded && (
+                    <div className="border-t border-border/60">
+                      {ls.length > 0 && (
+                        <ul>
+                          {ls.map((l) => (
+                            <StudentRow
+                              key={l.id}
+                              lesson={l}
+                              student={sOf(l.studentId)}
+                              busy={busy}
+                              onStatus={setStatus}
+                              onNotify={setNotified}
+                              onActions={openActions}
+                            />
+                          ))}
+                        </ul>
+                      )}
+                      {canAddToLesson(active.length) ? (
+                        <Button
+                          variant="ghost"
+                          onClick={() => { setSearch(""); setAdding(t); }}
+                          className="flex h-12 w-full items-center justify-center gap-2 rounded-none text-sm font-semibold text-court"
+                        >
+                          <Plus className="h-4 w-4" /> Agregar alumno
+                        </Button>
+                      ) : (
+                        <p className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Clase completa
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </li>
             );
@@ -233,14 +291,34 @@ function Agenda() {
           ) : (
             <div className="space-y-2">
               {actingReminder && (
-                <Button asChild variant="outline" className="h-12 w-full">
-                  <a href={actingReminder} target="_blank" rel="noopener noreferrer">
-                    <MessageCircle className="h-4 w-4" /> Recordar por WhatsApp
-                  </a>
-                </Button>
+                <>
+                  <Button asChild variant="outline" className="h-12 w-full">
+                    <a
+                      href={actingReminder}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => { if (!acting.notified) void setNotified(acting.id, true).then((ok) => { if (ok) setActing({ ...acting, notified: true }); }); }}
+                    >
+                      <MessageCircle className="h-4 w-4" /> Recordar por WhatsApp
+                    </a>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    aria-pressed={acting.notified}
+                    onClick={() => void setNotified(acting.id, !acting.notified).then((ok) => { if (ok) setActing({ ...acting, notified: !acting.notified }); })}
+                    className="h-11 w-full"
+                  >
+                    {acting.notified ? "Ya le avisé (deshacer)" : "Marcar como avisado"}
+                  </Button>
+                </>
               )}
-              {acting.status === "programada" && (
+              {(acting.status === "programada" || acting.status === "confirmado") && (
                 <Button variant="outline" onClick={() => setMoving(true)} className="h-12 w-full">Mover esta clase</Button>
+              )}
+              {acting.status === "confirmado" && (
+                <Button variant="outline" disabled={busy} onClick={async () => { if (await setStatus(acting.id, "programada")) setActing(null); }} className="h-12 w-full">
+                  Quitar la confirmación
+                </Button>
               )}
               <Button disabled={busy} onClick={async () => { if (await setStatus(acting.id, acting.status === "cancelada" ? "programada" : "cancelada")) setActing(null); }} className="h-12 w-full">
                 {acting.status === "cancelada" ? "Reactivar la clase" : "Cancelar la clase de este alumno"}
@@ -255,56 +333,152 @@ function Agenda() {
 
 /**
  * One student inside a class. Attendance is a single tap: the active button
- * returns the lesson to "programada". The balance number is deliberately absent;
- * a red dot is the only hint that this student owes classes.
+ * returns the lesson to "programada". Dragging the name sideways is the quick
+ * way to confirm (right) or release (left) the slot, and both can be undone from
+ * the toast. The balance number is deliberately absent; a red dot is the only
+ * hint that this student owes classes.
  */
-function StudentRow({ lesson, student, busy, onStatus, onActions }: {
+const SWIPE_LIMIT = 88;
+const SWIPE_COMMIT = 56;
+
+function StudentRow({ lesson, student, busy, onStatus, onNotify, onActions }: {
   lesson: Lesson;
   student: Student | undefined;
   busy: boolean;
   onStatus: (id: string, status: Lesson["status"]) => Promise<boolean>;
+  onNotify: (id: string, notified: boolean) => Promise<boolean>;
   onActions: (lesson: Lesson) => void;
 }) {
   const cancelled = lesson.status === "cancelada";
+  const confirmed = lesson.status === "confirmado";
   const name = student?.name ?? "Alumno";
   const owes = (student?.balance ?? 0) < 0;
   const profile = student ? profileLabel(student) : "";
-  const tone = cancelled ? "" : lesson.status === "presente" ? "bg-court/5" : lesson.status === "ausente" ? "bg-destructive/5" : "";
+  const tone = lesson.status === "presente" ? "bg-court/5" : lesson.status === "ausente" ? "bg-destructive/5" : confirmed ? "bg-foreground/5" : "";
   const round = "grid h-10 w-10 shrink-0 place-items-center rounded-full";
   // Nothing to remember when the class is cancelled or the student has no phone.
   const reminder = cancelled ? null : whatsappLink(student?.phone, reminderText(lesson.start));
 
+  const [dx, setDx] = useState(0);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const offset = useRef(0);
+  const swipedAt = useRef(0);
+
+  /** Confirming or releasing a slot never spends a class: only presence does. */
+  const mark = async (next: Lesson["status"]) => {
+    if (busy || next === lesson.status) return;
+    const previous = lesson.status;
+    if (!(await onStatus(lesson.id, next))) return;
+    toast(next === "confirmado" ? `Confirmaste a ${name}` : `${name} no va`, {
+      action: { label: "Deshacer", onClick: () => { void onStatus(lesson.id, previous); } },
+    });
+  };
+
+  const pointerDown = (e: React.PointerEvent) => {
+    if (busy) return;
+    start.current = { x: e.clientX, y: e.clientY };
+    offset.current = 0;
+  };
+  const pointerMove = (e: React.PointerEvent) => {
+    const from = start.current;
+    if (!from) return;
+    const mx = e.clientX - from.x;
+    const my = e.clientY - from.y;
+    // A vertical drag belongs to the page: only a clear sideways drag takes over.
+    if (Math.abs(mx) < 12 || Math.abs(mx) < Math.abs(my)) return;
+    const next = Math.max(-SWIPE_LIMIT, Math.min(SWIPE_LIMIT, mx));
+    offset.current = next;
+    setDx(next);
+  };
+  const pointerUp = () => {
+    const from = start.current;
+    start.current = null;
+    const moved = offset.current;
+    offset.current = 0;
+    setDx(0);
+    if (!from || moved === 0) return;
+    // The click that follows a drag must not also fire the button underneath.
+    swipedAt.current = Date.now();
+    if (moved >= SWIPE_COMMIT) void mark("confirmado");
+    else if (moved <= -SWIPE_COMMIT) void mark("cancelada");
+  };
+  const tap = (run: () => void) => () => {
+    if (Date.now() - swipedAt.current < 300) return;
+    run();
+  };
+
   return (
-    <li className={`flex items-center gap-1.5 border-b border-border/60 px-2 py-1.5 last:border-b-0 ${tone}`}>
-      <Button
-        variant="ghost"
-        disabled={busy || cancelled}
-        aria-label={`Marcar presente a ${name}`}
-        aria-pressed={lesson.status === "presente"}
-        onClick={() => onStatus(lesson.id, lesson.status === "presente" ? "programada" : "presente")}
-        className={`${round} ${lesson.status === "presente" ? "bg-court text-court-foreground" : "text-muted-foreground hover:bg-muted hover:text-court"}`}
-      ><Check className="h-5 w-5" /></Button>
-      <Button
-        variant="ghost"
-        disabled={busy || cancelled}
-        aria-label={`Marcar ausente a ${name}`}
-        aria-pressed={lesson.status === "ausente"}
-        onClick={() => onStatus(lesson.id, lesson.status === "ausente" ? "programada" : "ausente")}
-        className={`${round} ${lesson.status === "ausente" ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-muted hover:text-destructive"}`}
-      ><X className="h-5 w-5" /></Button>
-      <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={() => onActions(lesson)} className="flex h-10 min-w-0 flex-1 items-center justify-start gap-1.5 px-1 text-left">
-        <span className={`truncate text-[15px] font-semibold ${cancelled ? "text-muted-foreground line-through" : "text-foreground"}`}>{name}</span>
-        {profile && <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{profile}</span>}
-        {owes && !cancelled && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
-        {cancelled && <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">cancelada</span>}
-      </Button>
-      {reminder && (
-        <Button asChild variant="ghost" className={`${round} text-court hover:bg-court/10`}>
-          <a href={reminder} target="_blank" rel="noopener noreferrer" aria-label={`Recordar por WhatsApp a ${name}`}>
-            <MessageCircle className="h-5 w-5" />
-          </a>
-        </Button>
+    <li
+      className="relative overflow-hidden border-b border-border/60 last:border-b-0"
+      style={{ touchAction: "pan-y" }}
+      onPointerDown={pointerDown}
+      onPointerMove={pointerMove}
+      onPointerUp={pointerUp}
+      onPointerCancel={pointerUp}
+    >
+      {dx !== 0 && (
+        <div aria-hidden className="absolute inset-0 flex items-center justify-between bg-card px-4">
+          <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-court">
+            <Check className="h-4 w-4" /> Va
+          </span>
+          <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-destructive">
+            No va <X className="h-4 w-4" />
+          </span>
+        </div>
       )}
+      <div
+        className={`relative bg-card ${dx !== 0 ? "select-none" : ""}`}
+        style={{ transform: `translateX(${dx}px)`, transition: dx === 0 ? "transform 140ms ease-out" : "none" }}
+      >
+        {tone && <span aria-hidden className={`absolute inset-0 ${tone}`} />}
+        <div className="relative flex items-center gap-1.5 px-2 py-1.5">
+          <Button
+            variant="ghost"
+            disabled={busy || cancelled}
+            aria-label={`Marcar presente a ${name}`}
+            aria-pressed={lesson.status === "presente"}
+            onClick={tap(() => void onStatus(lesson.id, lesson.status === "presente" ? "programada" : "presente"))}
+            className={`${round} ${lesson.status === "presente" ? "bg-court text-court-foreground" : "text-muted-foreground hover:bg-muted hover:text-court"}`}
+          ><Check className="h-5 w-5" /></Button>
+          <Button
+            variant="ghost"
+            disabled={busy || cancelled}
+            aria-label={`Marcar ausente a ${name}`}
+            aria-pressed={lesson.status === "ausente"}
+            onClick={tap(() => void onStatus(lesson.id, lesson.status === "ausente" ? "programada" : "ausente"))}
+            className={`${round} ${lesson.status === "ausente" ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-muted hover:text-destructive"}`}
+          ><X className="h-5 w-5" /></Button>
+          <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={tap(() => onActions(lesson))} className="flex h-10 min-w-0 flex-1 items-center justify-start gap-1.5 px-1 text-left">
+            <span className={`truncate text-[15px] font-semibold ${cancelled ? "text-muted-foreground line-through" : "text-foreground"}`}>{name}</span>
+            {/* One tag at most: the state of the class matters more in the row
+                than the profile, which is still one tap away in the sheet. */}
+            {confirmed ? (
+              <span role="img" aria-label="Confirmado" className="shrink-0 rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground">va</span>
+            ) : cancelled ? (
+              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">cancelada</span>
+            ) : profile ? (
+              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{profile}</span>
+            ) : null}
+            {owes && !cancelled && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
+          </Button>
+          {reminder && (
+            <Button asChild variant="ghost" className={`${round} ${lesson.notified ? "bg-court/10 text-court" : "text-court hover:bg-court/10"}`}>
+              <a
+                href={reminder}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={lesson.notified ? `Ya le avisaste a ${name}` : `Recordar por WhatsApp a ${name}`}
+                onClick={tap(() => { if (!lesson.notified) void onNotify(lesson.id, true); })}
+              >
+                <span className="relative">
+                  <MessageCircle className="h-5 w-5" />
+                  {lesson.notified && <Check className="absolute -bottom-1 -right-1 h-3 w-3" strokeWidth={3} />}
+                </span>
+              </a>
+            </Button>
+          )}
+        </div>
+      </div>
     </li>
   );
 }

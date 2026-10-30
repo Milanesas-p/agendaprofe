@@ -34,6 +34,8 @@ export type LessonDto = {
   start: string;
   studentId: string;
   status: ClassStatus;
+  /** True once the teacher sent this class' WhatsApp reminder. */
+  notified: boolean;
 };
 
 export type SettingsDto = {
@@ -58,7 +60,7 @@ const DEFAULT_SETTINGS: SettingsDto = {
   noticeTemplate: null,
 };
 
-const STATUSES: readonly ClassStatus[] = ["programada", "presente", "ausente", "cancelada"];
+const STATUSES: readonly ClassStatus[] = ["programada", "confirmado", "presente", "ausente", "cancelada"];
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 /** Mirrors the column width, so MySQL never silently truncates a template. */
@@ -216,7 +218,7 @@ export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): P
     [ownerId],
   );
   const [lessonRows] = await db().execute(
-    "SELECT id, lesson_date, start_time, student_id, status FROM lessons WHERE owner_id = ? ORDER BY lesson_date, start_time",
+    "SELECT id, lesson_date, start_time, student_id, status, notified_at IS NOT NULL AS notified FROM lessons WHERE owner_id = ? ORDER BY lesson_date, start_time",
     [ownerId],
   );
   const students = (studentRows as RawStudentRow[]).map((s) => ({
@@ -232,13 +234,21 @@ export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): P
     balance: Number(s.balance),
   }));
   const lessons = (
-    lessonRows as Array<{ id: string; lesson_date: string; start_time: string; student_id: string; status: ClassStatus }>
+    lessonRows as Array<{
+      id: string;
+      lesson_date: string;
+      start_time: string;
+      student_id: string;
+      status: ClassStatus;
+      notified: number | boolean;
+    }>
   ).map((l) => ({
     id: l.id,
     date: l.lesson_date,
     start: l.start_time,
     studentId: l.student_id,
     status: l.status,
+    notified: Boolean(Number(l.notified)),
   }));
   return { students, lessons, settings: await readSettings(ownerId) };
 });
@@ -390,6 +400,25 @@ export const setLessonStatus = createServerFn({ method: "POST" })
   });
 
 /**
+ * Remembers whether the teacher already told this student about this class on
+ * WhatsApp. Owner scoped, and it never touches attendance or the balance.
+ */
+export const setLessonNotified = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const raw = (input ?? {}) as Record<string, unknown>;
+    if (typeof raw["notified"] !== "boolean") throw new Error("Estado inválido.");
+    return { id: rowId(raw["id"]), notified: raw["notified"] };
+  })
+  .handler(async ({ data }): Promise<void> => {
+    const ownerId = await requireUserId();
+    const [result] = await db().execute(
+      "UPDATE lessons SET notified_at = IF(?, NOW(), NULL) WHERE id = ? AND owner_id = ?",
+      [data.notified ? 1 : 0, data.id, ownerId],
+    );
+    if (!(result as { affectedRows?: number }).affectedRows) throw new Error("Esa clase no existe.");
+  });
+
+/**
  * Tops up every student's weekly slot up to the horizon.
  *
  * Idempotent and monotonic: it only looks at dates after each student's
@@ -500,7 +529,7 @@ export const moveLesson = createServerFn({ method: "POST" })
       );
       const lesson = (rows as Array<{ lesson_date: string; start_time: string; student_id: string; status: ClassStatus }>)[0];
       if (!lesson) throw new Error("Esa clase no existe.");
-      if (lesson.status !== "programada") {
+      if (lesson.status !== "programada" && lesson.status !== "confirmado") {
         throw new Error("Primero deshacé la asistencia para poder moverla.");
       }
       if (lesson.lesson_date === data.date && lesson.start_time === data.start) return;
@@ -525,7 +554,7 @@ export const moveLesson = createServerFn({ method: "POST" })
       if ((duplicate as unknown[]).length > 0) throw new Error("Ese alumno ya está en ese horario.");
 
       await connection.execute(
-        "UPDATE lessons SET lesson_date = ?, start_time = ? WHERE id = ? AND owner_id = ?",
+        "UPDATE lessons SET lesson_date = ?, start_time = ?, notified_at = NULL WHERE id = ? AND owner_id = ?",
         [data.date, data.start, data.id, ownerId],
       );
     });

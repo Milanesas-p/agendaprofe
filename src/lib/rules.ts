@@ -14,7 +14,7 @@ export type SlotRules = {
   breakEnd?: number | null;
 };
 
-export type ClassStatus = "programada" | "presente" | "ausente" | "cancelada";
+export type ClassStatus = "programada" | "confirmado" | "presente" | "ausente" | "cancelada";
 
 /**
  * A break is only valid when it sits inside the working window on a block
@@ -68,7 +68,10 @@ export const MAX_STUDENTS_PER_LESSON = 4;
 export const canAddToLesson = (activeStudents: number): boolean =>
   Number.isInteger(activeStudents) && activeStudents >= 0 && activeStudents < MAX_STUDENTS_PER_LESSON;
 
-/** A lesson consumes one class only once it was attended or marked absent. */
+/**
+ * A lesson consumes one class only once it was attended or marked absent.
+ * "confirmado" is the student saying they will come: still no class spent.
+ */
 export const usedClass = (status: ClassStatus): number =>
   status === "presente" || status === "ausente" ? 1 : 0;
 

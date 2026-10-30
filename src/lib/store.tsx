@@ -11,6 +11,7 @@ import {
   saveNoticeTemplate as saveNoticeTemplateFn,
   importStudents as importStudentsFn,
   setLessonStatus as setLessonStatusFn,
+  setLessonNotified as setLessonNotifiedFn,
   updateStudent as updateStudentFn,
   updateProfile as updateProfileFn,
 } from "@/server/data";
@@ -48,7 +49,15 @@ export type ImportedStudent = {
   recurringWeekday: number | null;
   recurringTime: string | null;
 };
-export type Lesson = { id: string; date: string; start: string; studentId: string; status: ClassStatus };
+export type Lesson = {
+  id: string;
+  date: string;
+  start: string;
+  studentId: string;
+  status: ClassStatus;
+  /** True once the teacher sent this class' WhatsApp reminder. */
+  notified: boolean;
+};
 export type Settings = {
   startHour: number;
   endHour: number;
@@ -74,7 +83,9 @@ type Ctx = State & {
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   setStatus: (id: string, s: ClassStatus) => Promise<boolean>;
-  addLesson: (l: Omit<Lesson, "id" | "status">) => Promise<boolean>;
+  /** Remembers whether this class' WhatsApp reminder was already sent. */
+  setNotified: (id: string, notified: boolean) => Promise<boolean>;
+  addLesson: (l: Omit<Lesson, "id" | "status" | "notified">) => Promise<boolean>;
   addStudent: (s: Omit<Student, "id">) => Promise<string | false>;
   updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay" | "phone" | "category" | "courtSide" | "recurringWeekday" | "recurringTime">) => Promise<boolean>;
   adjustBalance: (id: string, delta: number) => Promise<boolean>;
@@ -198,6 +209,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const ctx: Ctx = {
     ...st, user, loading, busy, signIn, signOut,
     setStatus: (id, status) => changed(() => setLessonStatusFn({ data: { id, status } }), "No se pudo guardar el cambio."),
+    setNotified: (id, notified) => changed(() => setLessonNotifiedFn({ data: { id, notified } }), "No se pudo guardar el aviso."),
     addLesson: async (l) => {
       if (!slots(st.settings).includes(l.start)) { toast.error("Horario fuera de los bloques configurados."); return false; }
       return changed(() => addLessonFn({ data: { date: l.date, start: l.start, studentId: l.studentId } }), "No se pudo reservar la clase.");

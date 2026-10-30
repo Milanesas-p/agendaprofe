@@ -75,6 +75,9 @@ CREATE TABLE lessons (
   start_time  CHAR(5)      NOT NULL,
   student_id  CHAR(36)     NOT NULL,
   status      VARCHAR(16)  NOT NULL DEFAULT 'programada',
+  -- Set when the teacher sends the WhatsApp reminder for this class; NULL means
+  -- nobody was told yet. Moving the class clears it: it was a different slot.
+  notified_at TIMESTAMP    NULL,
   -- NULL when cancelled, so the UNIQUE key below only guards active rows.
   slot_key    VARCHAR(20)  GENERATED ALWAYS AS (
     IF(status = 'cancelada', NULL, CONCAT(lesson_date, '#', start_time))
@@ -87,7 +90,7 @@ CREATE TABLE lessons (
   UNIQUE KEY one_active_student_slot (owner_id, slot_key, student_id),
   KEY lessons_owner_date (owner_id, lesson_date),
   CONSTRAINT lessons_start_fmt CHECK (start_time REGEXP '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
-  CONSTRAINT lessons_status CHECK (status IN ('programada', 'presente', 'ausente', 'cancelada')),
+  CONSTRAINT lessons_status CHECK (status IN ('programada', 'confirmado', 'presente', 'ausente', 'cancelada')),
   CONSTRAINT lessons_student_fk FOREIGN KEY (student_id, owner_id)
     REFERENCES students (id, owner_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
