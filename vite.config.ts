@@ -4,6 +4,16 @@ import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
 
+/**
+ * Vite rejects any Host header it does not know, which also blocks a temporary
+ * tunnel (`cloudflared tunnel --url http://localhost:3000`). `VITE_ALLOWED_HOSTS`
+ * adds the hostnames to trust, comma separated, only for the dev server.
+ */
+const tunnelHosts = (process.env.VITE_ALLOWED_HOSTS ?? "")
+  .split(",")
+  .map((host) => host.trim())
+  .filter(Boolean);
+
 export default defineConfig({
   plugins: [
     tailwindcss(),
@@ -15,4 +25,5 @@ export default defineConfig({
   ],
   // The "@/*" alias comes from tsconfig.json paths.
   resolve: { tsconfigPaths: true },
+  ...(tunnelHosts.length > 0 ? { server: { allowedHosts: tunnelHosts } } : {}),
 });
