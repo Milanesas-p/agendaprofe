@@ -452,18 +452,21 @@ function StudentRow({ lesson, student, busy, onStatus, onNotify, onActions }: {
             onClick={tap(() => void onStatus(lesson.id, lesson.status === "ausente" ? "programada" : "ausente"))}
             className={`${round} ${lesson.status === "ausente" ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-muted hover:text-destructive"}`}
           ><X className="h-5 w-5" /></Button>
-          <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={tap(() => onActions(lesson))} className="flex h-10 min-w-0 flex-1 items-center justify-start gap-1.5 px-1 text-left">
-            <span className={`truncate text-[15px] font-semibold ${cancelled ? "text-muted-foreground line-through" : "text-foreground"}`}>{name}</span>
-            {/* One tag at most: the state of the class matters more in the row
-                than the profile, which is still one tap away in the sheet. */}
-            {confirmed ? (
-              <span role="img" aria-label="Confirmado" className="shrink-0 rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground">va</span>
-            ) : cancelled ? (
-              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">cancelada</span>
-            ) : profile ? (
-              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{profile}</span>
-            ) : null}
-            {owes && !cancelled && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
+          <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={tap(() => onActions(lesson))} className="flex h-auto min-h-10 min-w-0 flex-1 flex-col items-start justify-center gap-0.5 px-1 py-1 text-left">
+            {/* The name gets the whole width; the profile shares a smaller second
+                line, so a long name never ends up as "Sofía Ra...". */}
+            <span className="flex max-w-full items-center gap-1.5">
+              <span className={`truncate text-[15px] font-semibold ${cancelled ? "text-muted-foreground line-through" : "text-foreground"}`}>{name}</span>
+              {owes && !cancelled && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
+              {confirmed && (
+                <span role="img" aria-label="Confirmado" className="shrink-0 rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground">va</span>
+              )}
+            </span>
+            {(profile || cancelled) && (
+              <span className="max-w-full truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {cancelled ? "cancelada" : profile}
+              </span>
+            )}
           </Button>
           {reminder && (
             <Button asChild variant="ghost" className={`${round} ${lesson.notified ? "bg-court/10 text-court" : "text-court hover:bg-court/10"}`}>
