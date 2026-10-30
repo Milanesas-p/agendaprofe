@@ -287,7 +287,7 @@ function StudentRow({ lesson, student, busy, onStatus, onActions }: {
         onClick={() => onStatus(lesson.id, lesson.status === "ausente" ? "programada" : "ausente")}
         className={`${round} ${lesson.status === "ausente" ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-muted hover:text-destructive"}`}
       ><X className="h-5 w-5" /></Button>
-      <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={() => onActions(lesson)} className="flex h-10 min-w-0 flex-1 items-center gap-1.5 px-1 text-left">
+      <Button variant="ghost" aria-label={`Opciones de ${name}`} onClick={() => onActions(lesson)} className="flex h-10 min-w-0 flex-1 items-center justify-start gap-1.5 px-1 text-left">
         <span className={`truncate text-[15px] font-semibold ${cancelled ? "text-muted-foreground line-through" : "text-foreground"}`}>{name}</span>
         {profile && <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{profile}</span>}
         {owes && !cancelled && <span role="img" aria-label="Debe clases" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
