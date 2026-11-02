@@ -20,9 +20,9 @@ export const Route = createFileRoute("/configuracion")({
   component: Configuracion,
 });
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-4">
+    <section className={`rounded-xl border border-border bg-card p-4 ${className}`}>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">{title}</h2>
       {children}
     </section>
@@ -67,14 +67,14 @@ function Configuracion() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-xl lg:px-6">
         <Button variant="ghost" aria-label="Volver a la agenda" onClick={() => navigate({ to: "/" })} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">Configuración</h1>
       </header>
 
-      <div className="space-y-3 p-4">
+      <div className="space-y-3 p-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:p-6">
         <Section title="Tu cuenta">
           <label className="block text-sm font-semibold">Nombre y apellido
             <input
@@ -126,7 +126,7 @@ function Configuracion() {
           <Button disabled={busy || !settingsOk} onClick={saveHours} className="mt-3 h-12 w-full">Guardar horarios</Button>
         </Section>
 
-        <Section title="Apariencia">
+        <Section title="Apariencia" className="lg:col-span-2">
           <div className="grid grid-cols-2 gap-2">
             {([["light", "Claro", Sun], ["dark", "Oscuro", Moon]] as const).map(([value, label, Icon]) => (
               <Button variant="ghost" key={value} aria-pressed={theme === value} onClick={() => chooseTheme(value)} className={`h-12 ${theme === value ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
