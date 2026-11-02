@@ -110,7 +110,7 @@ function Agenda() {
         sub="Tu cancha hoy"
         title="Agenda"
         right={
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 lg:hidden">
             <Link to="/avisos" aria-label="Avisos" data-tour="notices" className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground">
               <WhatsAppIcon className="h-5 w-5" />
             </Link>
@@ -123,7 +123,7 @@ function Agenda() {
           </div>
         }
       />
-      <div className="sticky top-[92px] z-20 space-y-3 border-b border-border bg-background px-4 py-3">
+      <div className="sticky top-[92px] z-20 space-y-3 border-b border-border bg-background px-4 py-3 lg:px-6">
         <div className="grid grid-cols-2 rounded-lg bg-muted p-1">
           {(["dia", "semana"] as const).map((v) => (
             <Button variant="ghost" key={v} onClick={() => setView(v)} className={`h-10 rounded-md text-sm font-semibold ${view === v ? "bg-foreground text-background" : "text-muted-foreground"}`}>
@@ -150,83 +150,86 @@ function Agenda() {
       </div>
 
       {view === "dia" ? (
-        <ul className="space-y-3 p-4">
-          {blocks.map((t) => {
-            const ls = dayLessons.filter((x) => x.start === t);
-            const active = ls.filter((l) => l.status !== "cancelada");
-            const released = ls.length - active.length;
-            const expanded = open.has(t);
-            // The released seat is worth saying out loud: a class that looks full
-            // because it shows four students still has room for a replacement.
-            const count = active.length === 0
-              ? (ls.length > 0 ? "Cancelada" : "Libre")
-              : `${active.length === 1 ? "1 alumno" : `${active.length} alumnos`}${released > 0 ? ` · ${released} no va` : ""}`;
-            return (
-              <li key={t} className="flex gap-3">
-                <span className="w-12 shrink-0 pt-3 text-xl font-semibold leading-none tabular-nums text-foreground">{t}</span>
-                <div
-                  className={`min-w-0 flex-1 overflow-hidden rounded-xl border ${
-                    active.length === 0 ? "border-dashed border-court/40 bg-court/5" : "border-border bg-card"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    aria-expanded={expanded}
-                    aria-label={`${t}, ${count}`}
-                    onClick={() => toggleSlot(t)}
-                    className="flex w-full items-center gap-2 px-3 py-3 text-left"
+        <div className="p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-6 lg:p-6">
+          <ul className="space-y-3">
+            {blocks.map((t) => {
+              const ls = dayLessons.filter((x) => x.start === t);
+              const active = ls.filter((l) => l.status !== "cancelada");
+              const released = ls.length - active.length;
+              const expanded = open.has(t);
+              // The released seat is worth saying out loud: a class that looks full
+              // because it shows four students still has room for a replacement.
+              const count = active.length === 0
+                ? (ls.length > 0 ? "Cancelada" : "Libre")
+                : `${active.length === 1 ? "1 alumno" : `${active.length} alumnos`}${released > 0 ? ` · ${released} no va` : ""}`;
+              return (
+                <li key={t} className="flex gap-3">
+                  <span className="w-12 shrink-0 pt-3 text-xl font-semibold leading-none tabular-nums text-foreground">{t}</span>
+                  <div
+                    className={`min-w-0 flex-1 overflow-hidden rounded-xl border ${
+                      active.length === 0 ? "border-dashed border-court/40 bg-court/5" : "border-border bg-card"
+                    }`}
                   >
-                    <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${active.length === 0 ? "text-court" : "text-foreground"}`}>
-                      {count}
-                    </span>
-                    {active.length > 0 && (
-                      <span aria-hidden className="flex shrink-0 items-center gap-1">
-                        {active.map((l) => (
-                          <i key={l.id} className={`h-2 w-2 rounded-full ${statusDot[l.status]}`} />
-                        ))}
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      aria-label={`${t}, ${count}`}
+                      onClick={() => toggleSlot(t)}
+                      className="flex w-full items-center gap-2 px-3 py-3 text-left"
+                    >
+                      <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${active.length === 0 ? "text-court" : "text-foreground"}`}>
+                        {count}
                       </span>
-                    )}
-                    <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
-                  </button>
-                  {expanded && (
-                    <div className="border-t border-border/60">
-                      {ls.length > 0 && (
-                        <ul>
-                          {ls.map((l) => (
-                            <StudentRow
-                              key={l.id}
-                              lesson={l}
-                              student={sOf(l.studentId)}
-                              busy={busy}
-                              onStatus={setStatus}
-                              onNotify={setNotified}
-                              onActions={openActions}
-                            />
+                      {active.length > 0 && (
+                        <span aria-hidden className="flex shrink-0 items-center gap-1">
+                          {active.map((l) => (
+                            <i key={l.id} className={`h-2 w-2 rounded-full ${statusDot[l.status]}`} />
                           ))}
-                        </ul>
+                        </span>
                       )}
-                      {canAddToLesson(active.length) ? (
-                        <Button
-                          variant="ghost"
-                          onClick={() => { setSearch(""); setAdding(t); }}
-                          className="flex h-12 w-full items-center justify-center gap-2 rounded-none text-sm font-semibold text-court"
-                        >
-                          <Plus className="h-4 w-4" /> Agregar alumno
-                        </Button>
-                      ) : (
-                        <p className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          Clase completa
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                      <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+                    </button>
+                    {expanded && (
+                      <div className="border-t border-border/60">
+                        {ls.length > 0 && (
+                          <ul>
+                            {ls.map((l) => (
+                              <StudentRow
+                                key={l.id}
+                                lesson={l}
+                                student={sOf(l.studentId)}
+                                busy={busy}
+                                onStatus={setStatus}
+                                onNotify={setNotified}
+                                onActions={openActions}
+                              />
+                            ))}
+                          </ul>
+                        )}
+                        {canAddToLesson(active.length) ? (
+                          <Button
+                            variant="ghost"
+                            onClick={() => { setSearch(""); setAdding(t); }}
+                            className="flex h-12 w-full items-center justify-center gap-2 rounded-none text-sm font-semibold text-court"
+                          >
+                            <Plus className="h-4 w-4" /> Agregar alumno
+                          </Button>
+                        ) : (
+                          <p className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Clase completa
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <DaySummary lessons={dayLessons} blocks={blocks} />
+        </div>
       ) : (
-        <div className="space-y-4 p-4">
+        <div className="space-y-4 p-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 lg:p-6">
           {week.map((d) => {
             const k = iso(d);
             const ls = lessons.filter((l) => l.date === k).sort((a, b) => a.start.localeCompare(b.start));
@@ -332,6 +335,45 @@ function Agenda() {
         </Sheet>
       )}
     </>
+  );
+}
+
+/**
+ * Desktop-only companion to the day list: the same numbers the teacher would
+ * otherwise count by hand, in a column that has room for them. Hidden on mobile
+ * because there the day itself is the screen.
+ */
+function DaySummary({ lessons, blocks }: { lessons: Lesson[]; blocks: string[] }) {
+  const active = lessons.filter((l) => l.status !== "cancelada");
+  const present = lessons.filter((l) => l.status === "presente").length;
+  const absent = lessons.filter((l) => l.status === "ausente").length;
+  const confirmed = lessons.filter((l) => l.status === "confirmado").length;
+  const released = lessons.length - active.length;
+  const taken = new Set(active.map((l) => l.start)).size;
+  const rows = [
+    { label: "Horarios ocupados", value: `${taken} de ${blocks.length}` },
+    { label: "Alumnos en clase", value: String(active.length) },
+    { label: "Presentes", value: String(present), tone: "text-court" },
+    { label: "Ausentes", value: String(absent), tone: "text-destructive" },
+    { label: "Confirmados", value: String(confirmed) },
+    { label: "No van", value: String(released) },
+    { label: "Horarios libres", value: String(blocks.length - taken), tone: "text-court" },
+  ];
+
+  return (
+    <aside className="hidden lg:block">
+      <div className="rounded-xl border border-border bg-card p-4">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Resumen del día</h2>
+        <dl className="mt-3 space-y-2.5">
+          {rows.map((row) => (
+            <div key={row.label} className="flex items-baseline justify-between gap-3">
+              <dt className="text-sm font-medium text-muted-foreground">{row.label}</dt>
+              <dd className={`text-sm font-semibold tabular-nums ${row.tone ?? "text-foreground"}`}>{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </aside>
   );
 }
 

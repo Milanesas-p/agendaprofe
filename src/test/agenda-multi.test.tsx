@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
@@ -87,6 +87,17 @@ describe("agenda with several students in one class", () => {
     expect(screen.getByRole("button", { name: "08:00, Libre" })).toBeTruthy();
     // Closed: nothing of the class can be edited yet.
     expect(screen.queryByLabelText("Marcar presente a María Pérez")).toBeNull();
+  });
+
+  it("adds the day summary beside the agenda on wide screens", () => {
+    store.students = [student("s1", "María Pérez"), student("s2", "Juan Gómez")];
+    store.lessons = [lesson("l1", "s1", "presente")];
+    renderAgenda();
+
+    const summary = screen.getByRole("complementary");
+    expect(within(summary).getByText("Resumen del día")).toBeTruthy();
+    expect(within(summary).getByText("Presentes")).toBeTruthy();
+    expect(within(summary).getByText("Horarios ocupados")).toBeTruthy();
   });
 
   it("opens a block on demand and closes it again on the next tap", () => {
