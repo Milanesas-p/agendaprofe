@@ -66,9 +66,12 @@ describe("login gate", () => {
     store.user = { id: "owner", email: "profe@padel.com" };
     render(<AppShell />);
 
-    expect(screen.getByText("Agenda")).toBeTruthy();
-    expect(screen.getByText("Alumnos")).toBeTruthy();
-    expect(screen.getByLabelText("Nueva clase")).toBeTruthy();
+    // Both navigations render; CSS picks the sidebar or the tab bar by width.
+    expect(screen.getByRole("navigation", { name: "Navegación lateral" })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "Navegación inferior" })).toBeTruthy();
+    expect(screen.getAllByText("Agenda").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Alumnos").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Nueva clase").length).toBeGreaterThan(0);
     expect(screen.queryByText(CONTACT)).toBeNull();
   });
 });
