@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 import { Route } from "@/routes/importar";
 
@@ -66,6 +67,30 @@ describe("import page", () => {
     expect(screen.getByText("Maxi Salas")).toBeTruthy();
     expect(screen.getByText("1 listo · 0 con problemas")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Importar 1 alumno" })).toBeTruthy();
+  });
+
+  it("reads a completed file into the same preview", async () => {
+    renderPage();
+    const file = new File(["nombre;telefono\nMaxi Salas;2302666351"], "alumnos.csv", { type: "text/csv" });
+    fireEvent.change(screen.getByLabelText("Subir archivo de alumnos"), { target: { files: [file] } });
+
+    expect(await screen.findByText("Maxi Salas")).toBeTruthy();
+    expect(screen.getByText("1 listo · 0 con problemas")).toBeTruthy();
+    expect(screen.getByText("alumnos.csv")).toBeTruthy();
+  });
+
+  it("offers the template download next to the upload", () => {
+    renderPage();
+
+    expect(screen.getByRole("button", { name: /descargar plantilla/i })).toBeTruthy();
+  });
+
+  it("rejects a file that is not plain text", () => {
+    renderPage();
+    const file = new File(["x"], "planilla.xlsx", { type: "application/vnd.ms-excel" });
+    fireEvent.change(screen.getByLabelText("Subir archivo de alumnos"), { target: { files: [file] } });
+
+    expect(toast.error).toHaveBeenCalledWith("Subí el archivo en formato CSV.");
   });
 
   it("explains the broken rows and still offers the good ones", () => {

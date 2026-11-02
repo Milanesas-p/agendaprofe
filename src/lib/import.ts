@@ -2,9 +2,9 @@
  * Importing students from pasted text.
  *
  * The teacher copies rows out of Excel or Sheets and pastes them: tabs by default,
- * but commas and semicolons work too. The first row names the columns, so nothing
- * is guessed; every row is validated on its own and a broken row never blocks the
- * rest. Pure functions only.
+ * but commas and semicolons work too. The first non-comment row names the columns
+ * (lines starting with `#` are ignored), so nothing is guessed; every row is
+ * validated on its own and a broken row never blocks the rest. Pure functions only.
  */
 
 import { CATEGORIES, COURT_SIDES, type Category, type CourtSide } from "@/lib/player";
@@ -33,6 +33,32 @@ export type ImportReport = {
 };
 
 export const HEADER_ERROR = "La primera fila tiene que traer los títulos de las columnas.";
+
+/** Column headings of the downloadable template, in the order the screen lists them. */
+export const TEMPLATE_HEADER = ["nombre", "telefono", "tipo", "pago", "categoria", "posicion", "dia", "hora"].join(";");
+
+/**
+ * The template the teacher downloads: an instruction line, the header, and room to
+ * fill rows under it. Semicolons match the Spanish Excel list separator, so it
+ * opens already split into columns; `#` lines are ignored by the parser.
+ */
+export function importTemplate(): string {
+  return [
+    "# Una fila por alumno. tipo: fijo o rotativo. pago: mensual o semanal. categoria: 1ra a 8va. posicion: drive, reves o indistinto. dia: lunes a domingo. hora: HH:MM.",
+    TEMPLATE_HEADER,
+    "",
+  ].join("\n");
+}
+
+/**
+ * Decodes a file the teacher completed. Excel writes UTF-8 only when asked, so a
+ * file with invalid UTF-8 is retried as the ANSI code page it usually is.
+ */
+export function decodeImportFile(buffer: ArrayBuffer): string {
+  const strip = (text: string) => text.replace(/^\uFEFF/, "");
+  const utf8 = strip(new TextDecoder("utf-8").decode(buffer));
+  return utf8.includes("\uFFFD") ? strip(new TextDecoder("windows-1252").decode(buffer)) : utf8;
+}
 
 type Column = "nombre" | "telefono" | "tipo" | "pago" | "categoria" | "posicion" | "dia" | "hora";
 
@@ -217,7 +243,10 @@ export function parseStudents(
 ): ImportReport {
   const allowedSlots = options.allowedSlots ?? [];
   const lines = text.split(/\r?\n/);
-  const nonEmpty = lines.map((line, i) => ({ line, number: i + 1 })).filter((l) => l.line.trim() !== "");
+  // Comments keep the downloaded template self-explanatory without becoming rows.
+  const nonEmpty = lines
+    .map((line, i) => ({ line, number: i + 1 }))
+    .filter((l) => l.line.trim() !== "" && !l.line.trimStart().startsWith("#"));
 
   if (nonEmpty.length === 0) return { rows: [], ready: [], error: null };
 

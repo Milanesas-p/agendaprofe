@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseStudents } from "@/lib/import";
+import { decodeImportFile, importTemplate, parseStudents } from "@/lib/import";
 
 const header = "nombre\ttelefono\ttipo\tpago\tcategoria\tposicion\tdia\thora";
 
@@ -99,5 +99,37 @@ describe("importing students from pasted text", () => {
     });
 
     expect(report.rows.map((r) => r.recurringWeekday)).toEqual([3, 3, 3]);
+  });
+});
+
+describe("downloadable import template", () => {
+  it("ships a header row the parser accepts, with every column", () => {
+    const report = parseStudents(importTemplate());
+    const columns = importTemplate().split("\n")[1]?.trim().split(";") ?? [];
+
+    expect(report.error).toBeNull();
+    expect(report.rows).toHaveLength(0);
+    for (const column of ["nombre", "telefono", "tipo", "pago", "categoria", "posicion", "dia", "hora"]) {
+      expect(columns).toContain(column);
+    }
+  });
+
+  it("ignores the instruction comment without shifting the line numbers", () => {
+    const report = parseStudents("# completá una fila por alumno\nnombre,telefono\nMaxi Salas,2302666351");
+
+    expect(report.rows[0]).toMatchObject({ line: 3, name: "Maxi Salas" });
+  });
+
+  it("decodes a UTF-8 file and drops the BOM Excel adds", () => {
+    const bytes = new Uint8Array(new TextEncoder().encode("\uFEFFnombre;telefono\nMaría;123"));
+
+    expect(decodeImportFile(bytes.buffer)).toBe("nombre;telefono\nMaría;123");
+  });
+
+  it("falls back to the ANSI code page when the file is not UTF-8", () => {
+    // "María" in windows-1252: 0xED is a lone continuation byte in UTF-8.
+    const bytes = new Uint8Array([0x4d, 0x61, 0x72, 0xed, 0x61]);
+
+    expect(decodeImportFile(bytes.buffer)).toBe("María");
   });
 });
