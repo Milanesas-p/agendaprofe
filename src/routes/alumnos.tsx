@@ -42,34 +42,41 @@ function Alumnos() {
           <Button variant="ghost" onClick={() => setNuevo(true)} aria-label="Nuevo alumno" className="grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground"><UserPlus className="h-6 w-6" /></Button>
         </div>
       } />
-      <label className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-border bg-card px-3">
-        <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
-        <input type="search" aria-label="Buscar alumno" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full min-w-0 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
-      </label>
-      <div className="mx-4 mt-3 grid grid-cols-4 gap-1 rounded-lg bg-muted p-1">
-        {(["todos", "fijo", "rotativo", "deuda"] as const).map((f) => (
-          <Button variant="ghost" key={f} onClick={() => setFilter(f)} className={`h-10 rounded-md px-1 text-xs font-semibold capitalize ${filter === f ? "bg-foreground text-background" : "text-muted-foreground"}`}>{f}</Button>
-        ))}
+      <div className="lg:flex lg:items-center lg:gap-3 lg:px-6 lg:pt-3">
+        <label className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-border bg-card px-3 lg:mx-0 lg:mt-0 lg:flex-1">
+          <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <input type="search" aria-label="Buscar alumno" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full min-w-0 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
+        </label>
+        <div className="mx-4 mt-3 grid grid-cols-4 gap-1 rounded-lg bg-muted p-1 lg:mx-0 lg:mt-0 lg:w-80">
+          {(["todos", "fijo", "rotativo", "deuda"] as const).map((f) => (
+            <Button variant="ghost" key={f} onClick={() => setFilter(f)} className={`h-10 rounded-md px-1 text-xs font-semibold capitalize ${filter === f ? "bg-foreground text-background" : "text-muted-foreground"}`}>{f}</Button>
+          ))}
+        </div>
       </div>
-      <div className="flex items-baseline justify-between px-4 pb-2 pt-4">
+      <div className="flex items-baseline justify-between px-4 pb-2 pt-4 lg:px-6">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Directorio</span>
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{list.length} {list.length === 1 ? "alumno" : "alumnos"}</span>
       </div>
-      <ul className="space-y-3 px-4 pb-4">
+      <ul className="space-y-3 px-4 pb-4 lg:space-y-0 lg:divide-y lg:divide-border lg:rounded-xl lg:border lg:border-border lg:bg-card lg:px-0 lg:pb-0">
+        <li className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_13rem] lg:gap-4 lg:border-b lg:border-border lg:px-4 lg:py-2.5 lg:text-[11px] lg:font-semibold lg:uppercase lg:tracking-wider lg:text-muted-foreground">
+          <span>Alumno</span>
+          <span>Saldo</span>
+          <span>Clases</span>
+        </li>
         {list.length === 0 && <li className="py-8 text-center text-sm text-muted-foreground">{loading ? "Cargando alumnos…" : search ? "No hay coincidencias." : "No hay alumnos en esta lista."}</li>}
         {list.map((s) => (
-          <li key={s.id} className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-start justify-between gap-3">
+          <li key={s.id} className="rounded-xl border border-border bg-card p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_13rem] lg:items-center lg:gap-4 lg:rounded-none lg:border-0 lg:px-4 lg:py-3">
+            <div className="flex items-start justify-between gap-3 lg:block">
               <div className="min-w-0">
                 <Button variant="ghost" aria-label={`Editar ${s.name}`} onClick={() => setEditing(s)} className="h-auto max-w-full justify-start p-0 text-lg font-semibold text-foreground hover:bg-transparent">
                   <span className="truncate">{s.name}</span><Pencil className="shrink-0 text-muted-foreground" />
                 </Button>
                 <p className="mt-1 text-sm text-muted-foreground">{[s.type, s.category, s.courtSide ? courtSideLabel(s.courtSide) : null, weeklySlotLabel(s)].filter(Boolean).join(" · ")}</p>
-                <p className={`mt-0.5 text-sm font-medium ${s.balance < 0 ? "text-destructive" : "text-muted-foreground"}`}>{balancePhrase(s.balance)}</p>
               </div>
-              <span aria-hidden className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full ${s.balance > 0 ? "bg-court" : s.balance < 0 ? "bg-destructive" : "bg-border"}`} />
+              <span aria-hidden className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full lg:hidden ${s.balance > 0 ? "bg-court" : s.balance < 0 ? "bg-destructive" : "bg-border"}`} />
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <p className={`mt-0.5 text-sm font-medium lg:mt-0 ${s.balance < 0 ? "text-destructive" : "text-muted-foreground"}`}>{balancePhrase(s.balance)}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 lg:mt-0">
               <Button variant="outline" disabled={busy} aria-label="Restar clase" onClick={() => adjustBalance(s.id, -1)} className="h-11 w-full"><Minus className="h-4 w-4" />Clase</Button>
               <Button disabled={busy} aria-label="Sumar clase" onClick={() => adjustBalance(s.id, 1)} className="h-11 w-full"><Plus className="h-4 w-4" />Clase</Button>
             </div>

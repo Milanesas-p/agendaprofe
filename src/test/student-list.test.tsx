@@ -114,4 +114,13 @@ describe("student list", () => {
 
     expect(screen.getByLabelText("Importar alumnos").getAttribute("href")).toBe("/importar");
   });
+
+  it("adds a column header for the desktop directory table", () => {
+    store.students = [student()];
+    renderPage();
+
+    expect(screen.getByText("Alumno")).toBeTruthy();
+    expect(screen.getByText("Saldo")).toBeTruthy();
+    expect(screen.getByText("Clases")).toBeTruthy();
+  });
 });
