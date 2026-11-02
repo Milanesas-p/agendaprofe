@@ -8,6 +8,7 @@ import {
   DEFAULT_NOTICE_TEMPLATE,
   NOTICE_DAYS,
   dayLabel,
+  fillTemplate,
   nextDays,
   noticeText,
   upcomingNotices,
@@ -50,14 +51,15 @@ function Avisos() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-xl lg:px-6">
         <Button asChild variant="ghost" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted">
           <Link to="/" aria-label="Volver a la agenda"><ArrowLeft className="h-5 w-5" /></Link>
         </Button>
         <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">Avisos</h1>
       </header>
 
-      <div className="space-y-3 p-4">
+      <div className="space-y-3 p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6 lg:p-6">
+        <div className="space-y-3">
         <section className="rounded-xl border border-border bg-card p-4">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Plantilla del aviso</h2>
           <label className="block text-sm font-semibold">
@@ -128,7 +130,28 @@ function Avisos() {
             </section>
           );
         })}
+        </div>
+        <NoticePreview draft={draft} />
       </div>
     </>
+  );
+}
+
+/**
+ * Desktop-only: the teacher sees the exact message the student will get, with a
+ * safe placeholder name, before any link is opened.
+ */
+function NoticePreview({ draft }: { draft: string }) {
+  const template = draft.trim() ? draft : DEFAULT_NOTICE_TEMPLATE;
+  const text = fillTemplate(template, { nombre: "Nombre", dia: "viernes 30/10", hora: "13:00" });
+
+  return (
+    <aside className="hidden lg:block">
+      <div className="rounded-xl border border-border bg-card p-4">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Vista previa del aviso</h2>
+        <p className="mt-3 whitespace-pre-wrap rounded-lg bg-muted p-3 text-sm leading-relaxed text-foreground">{text}</p>
+        <p className="mt-3 text-xs text-muted-foreground">Así se ve el mensaje con los datos de un alumno. WhatsApp te deja editarlo antes de enviarlo.</p>
+      </div>
+    </aside>
   );
 }

@@ -1,4 +1,4 @@
-﻿import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+﻿import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Route } from "@/routes/avisos";
@@ -115,6 +115,15 @@ describe("notices page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar plantilla" }));
 
     expect(store.setNoticeTemplate).toHaveBeenCalledWith("Hola [nombre], nos vemos a las [hora].");
+  });
+
+  it("shows a preview of the message on wide screens", () => {
+    store.students = [student("s1", "Maxi Salas", "5492302666351")];
+    store.lessons = [lesson("l1", "s1", tomorrow)];
+    renderPage();
+
+    const preview = screen.getByRole("complementary");
+    expect(within(preview).getByText("Vista previa del aviso")).toBeTruthy();
   });
 
   it("falls back to the default template when there is none saved", () => {
