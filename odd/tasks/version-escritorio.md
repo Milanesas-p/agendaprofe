@@ -14,14 +14,14 @@ Rama: `migracion-node-mysql`. Entrega: commits por unidad de trabajo en la rama.
 
 ## Tasks
 
-- **T1** — Shell responsive: sidebar de escritorio, contenedor ancho, mobile intacto, test de navegación actualizado. (inline)
-- **T2** — Agenda (`/`): grilla agenda + resumen del día en escritorio. (inline)
-- **T3** — Alumnos (`/alumnos`): tabla en escritorio. (inline)
-- **T4** — Avisos (`/avisos`): lista + vista previa en escritorio. (inline)
-- **T5** — Resumen (`/resumen`): tarjetas/gráficos en grilla ancha. (inline)
-- **T6** — Configuración (`/configuracion`): formulario en dos columnas. (inline)
-- **T7** — Nueva clase e importar: formularios centrados y cómodos. (inline)
-- **T8** — Login: tarjeta centrada en escritorio. (inline)
+- **T1** — Shell responsive: sidebar de escritorio, contenedor ancho, mobile intacto, test de navegación actualizado. (inline) — commit `9d5f0ac`
+- **T2** — Agenda (`/`): grilla agenda + resumen del día en escritorio. (inline) — commit `3512d10`
+- **T3** — Alumnos (`/alumnos`): tabla en escritorio. (inline) — commit `68d61e1`
+- **T4** — Avisos (`/avisos`): lista + vista previa en escritorio. (inline) — commit `4033296`
+- **T5** — Resumen (`/resumen`): tarjetas/gráficos en grilla ancha. (inline) — commit `ab1cbac`
+- **T6** — Configuración (`/configuracion`): formulario en dos columnas. (inline) — commit `4d6abf8`
+- **T7** — Nueva clase e importar: formularios centrados y cómodos. (inline) — commit `3d09a15`
+- **T8** — Login: tarjeta centrada en escritorio. (inline) — sin cambios: ya estaba centrado con `max-w-md`.
 
 ## Log
 
@@ -36,3 +36,11 @@ Rama: `migracion-node-mysql`. Entrega: commits por unidad de trabajo en la rama.
 ### L3 — decisión de diseño (2026-11-02)
 
 "1. sidebar a la izquierda. 2. si, no te preocupes, eso lo vemos cuando la carguemos en hostinger"
+
+### L4 — implementación (2026-11-02)
+
+- Breakpoint elegido: `lg` (1024px). Debajo, el layout mobile queda igual; todos los cambios de escritorio entran con prefijo `lg:`.
+- T1–T7 implementados y commiteados; T8 ya estaba resuelto (el login ya era una tarjeta centrada).
+- Verificación: `npx tsc --noEmit` sin errores; `npm test` → 221/221 en verde.
+- La suite completa tiene timeouts intermitentes de 5s bajo carga (pasa al reintentar; cada archivo pasa aislado). Es previo a este trabajo, no una regresión.
+- No se tocó el backend, las rutas ni los datos: solo marcado y clases de layout.
