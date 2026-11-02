@@ -75,14 +75,14 @@ function NuevaClase() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-xl lg:px-6">
         <Button variant="ghost" aria-label="Volver a la agenda" onClick={() => navigate({ to: "/" })} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">Nueva clase</h1>
       </header>
 
-      <div className="space-y-3 p-4">
+      <div className="space-y-3 p-4 lg:mx-auto lg:w-full lg:max-w-3xl lg:p-6">
         <Step number={1} title="¿Quién entrena?" hint={`${candidates.length} ${candidates.length === 1 ? "alumno" : "alumnos"}`}>
           <label className="flex items-center gap-2 rounded-lg bg-muted px-3">
             <Search className="h-5 w-5 shrink-0 text-muted-foreground" />

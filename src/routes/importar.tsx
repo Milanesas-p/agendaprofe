@@ -47,14 +47,15 @@ function Importar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-xl lg:px-6">
         <Button asChild variant="ghost" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted">
           <Link to="/alumnos" aria-label="Volver a alumnos"><ArrowLeft className="h-5 w-5" /></Link>
         </Button>
         <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">Importar alumnos</h1>
       </header>
 
-      <div className="space-y-3 p-4">
+      <div className="space-y-3 p-4 lg:mx-auto lg:grid lg:w-full lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:gap-6 lg:p-6">
+        <div className="space-y-3">
         <section className="rounded-xl border border-border bg-card p-4">
           <label className="block text-sm font-semibold">
             Pegá la lista
@@ -77,7 +78,9 @@ function Importar() {
         {report.error && (
           <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">{report.error}</p>
         )}
+        </div>
 
+        <div className="space-y-3">
         {report.rows.length > 0 && (
           <>
             <div className="flex items-baseline justify-between px-1">
@@ -109,6 +112,7 @@ function Importar() {
             </Button>
           </>
         )}
+        </div>
       </div>
     </>
   );
