@@ -27,14 +27,15 @@ function Resumen() {
   return (
     <>
       <PageHeader sub="Control" title="Resumen" />
-      <div className="grid grid-cols-2 gap-3 p-4">
+      <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4 lg:px-6">
         <Stat label="Tomadas" value={present.length} />
         <Stat label="Ausencias" value={absent.length} tone="text-destructive" />
         <Stat label="A favor" value={`+${credit}`} tone="text-court" />
         <Stat label="Adeudadas" value={debt} tone="text-destructive" />
       </div>
 
-      <Section title="Por alumno">
+      <div className="lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:px-6">
+        <Section title="Por alumno">
         <table className="w-full text-left">
           <thead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"><tr><th className="py-2">Alumno</th><th>Pres.</th><th>Aus.</th><th className="text-right">Saldo</th></tr></thead>
           <tbody>
@@ -62,6 +63,7 @@ function Resumen() {
           {absent.length === 0 && <p className="text-sm text-muted-foreground">Sin ausencias.</p>}
         </ul>
       </Section>
+      </div>
     </>
   );
 }
@@ -73,7 +75,7 @@ const Stat = ({ label, value, tone = "text-foreground" }: { label: string; value
   </div>
 );
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <section className="mx-4 mb-6 border-t border-border pt-4">
+  <section className="mx-4 mb-6 border-t border-border pt-4 lg:mx-0">
     <h2 className="mb-2 text-base font-semibold text-foreground">{title}</h2>
     {children}
   </section>
