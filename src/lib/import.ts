@@ -34,21 +34,9 @@ export type ImportReport = {
 
 export const HEADER_ERROR = "La primera fila tiene que traer los títulos de las columnas.";
 
-/** Column headings of the downloadable template, in the order the screen lists them. */
-export const TEMPLATE_HEADER = ["nombre", "telefono", "tipo", "pago", "categoria", "posicion", "dia", "hora"].join(";");
-
-/**
- * The template the teacher downloads: an instruction line, the header, and room to
- * fill rows under it. Semicolons match the Spanish Excel list separator, so it
- * opens already split into columns; `#` lines are ignored by the parser.
- */
-export function importTemplate(): string {
-  return [
-    "# Una fila por alumno. tipo: fijo o rotativo. pago: mensual o semanal. categoria: 1ra a 8va. posicion: drive, reves o indistinto. dia: lunes a domingo. hora: HH:MM.",
-    TEMPLATE_HEADER,
-    "",
-  ].join("\n");
-}
+/** Columns of the downloadable template, in the order the screen lists them. */
+export const TEMPLATE_COLUMNS = ["nombre", "telefono", "tipo", "pago", "categoria", "posicion", "dia", "hora"] as const;
+export type TemplateColumn = (typeof TEMPLATE_COLUMNS)[number];
 
 /**
  * Decodes a file the teacher completed. Excel writes UTF-8 only when asked, so a
@@ -136,6 +124,14 @@ function weekdayOf(value: string): number | null {
  */
 function timeOf(value: string): string | null {
   const text = fold(value);
+
+  // A spreadsheet may store a time as the fraction of a day it already is.
+  const fraction = /^(?:0)?\.(\d+)$/.exec(text);
+  if (fraction) {
+    const minutes = Math.round(Number(`0.${fraction[1]}`) * 24 * 60) % (24 * 60);
+    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  }
+
   const twelveHour = /^(\d{1,2})[:.h](\d{2})(?::\d{2})?\s*([ap])\.?\s*m?\.?$/.exec(text);
   if (twelveHour) {
     const hour = Number(twelveHour[1]);

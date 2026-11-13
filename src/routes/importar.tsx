@@ -4,7 +4,8 @@ import { ArrowLeft, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { slots, useStore, type ImportedStudent } from "@/lib/store";
-import { decodeImportFile, importTemplate, parseStudents } from "@/lib/import";
+import { decodeImportFile, parseStudents } from "@/lib/import";
+import { buildStudentsWorkbook, isXlsxBytes, readStudentsWorkbook, rowsToTsv, SHEET_FILE_NAME, SHEET_MIME } from "@/lib/xlsx";
 import { profileLabel } from "@/lib/player";
 import { weeklySlotLabel } from "@/lib/agenda";
 
@@ -46,18 +47,22 @@ function Importar() {
     navigate({ to: "/alumnos" });
   }
 
-  /** Header-only CSV, with a BOM so Excel keeps the accents when it saves it back. */
-  function downloadTemplate() {
-    const blob = new Blob([`\uFEFF${importTemplate()}`], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "plantilla-alumnos.csv";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    // Safari cancels the download if the URL dies during the click.
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+  /** A real workbook, so the closed columns open with their dropdowns. */
+  async function downloadTemplate() {
+    try {
+      const bytes = await buildStudentsWorkbook({ slots: slots(settings) });
+      const url = URL.createObjectURL(new Blob([bytes], { type: SHEET_MIME }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = SHEET_FILE_NAME;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Safari cancels the download if the URL dies during the click.
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch {
+      toast.error("No pudimos preparar la plantilla. Probá de nuevo.");
+    }
   }
 
   /** The completed file is read into the same box as a paste, so the preview is identical. */
@@ -66,15 +71,24 @@ function Importar() {
     // Clearing the input lets the same file be chosen again after an edit.
     event.target.value = "";
     if (!file) return;
-    if (!/\.(csv|tsv|txt)$/i.test(file.name)) {
-      toast.error("Subí el archivo en formato CSV.");
+    const isWorkbook = /\.xlsx$/i.test(file.name);
+    if (!isWorkbook && !/\.(csv|tsv|txt)$/i.test(file.name)) {
+      toast.error("Subí la plantilla .xlsx o un archivo CSV.");
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (!(reader.result instanceof ArrayBuffer)) return;
-      setText(decodeImportFile(reader.result));
-      setFileName(file.name);
+      try {
+        if (isWorkbook || isXlsxBytes(new Uint8Array(reader.result))) {
+          setText(rowsToTsv(await readStudentsWorkbook(reader.result)));
+        } else {
+          setText(decodeImportFile(reader.result));
+        }
+        setFileName(file.name);
+      } catch {
+        toast.error("No pudimos leer la planilla. Probá de nuevo.");
+      }
     };
     reader.onerror = () => toast.error("No pudimos leer el archivo. Probá de nuevo.");
     reader.readAsArrayBuffer(file);
@@ -100,7 +114,7 @@ function Importar() {
               <Upload className="h-4 w-4" /> Subir archivo
               <input
                 type="file"
-                accept=".csv,.tsv,.txt,text/csv,text/plain"
+                accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
                 aria-label="Subir archivo de alumnos"
                 onChange={readFile}
                 className="sr-only"
@@ -120,7 +134,7 @@ function Importar() {
             />
           </label>
           <p className="mt-2 text-xs text-muted-foreground">
-            Descargá la plantilla, completá una fila por alumno y subila; o pegá las filas desde Excel o Sheets. La plantilla ya trae los títulos de las columnas:
+            Descargá la plantilla .xlsx (ya trae desplegables en tipo, pago, categoría, posición, día y hora), completá una fila por alumno y subila tal cual; también podés subir un CSV o pegar las filas desde Excel o Sheets. La plantilla ya trae los títulos de las columnas:
             <span className="font-semibold text-foreground"> nombre</span> es lo único obligatorio; también podés sumar
             telefono, tipo, pago, categoria, posicion, dia y hora.
           </p>

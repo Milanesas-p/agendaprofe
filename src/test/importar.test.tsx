@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { Route } from "@/routes/importar";
+import { buildStudentsWorkbook, SHEET_MIME } from "@/lib/xlsx";
 
 const { store, navigate } = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -56,6 +57,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   store.settings = { startHour: 8, endHour: 17, blockMin: 60, breakStart: null, breakEnd: null, noticeTemplate: null };
   store.importStudents.mockResolvedValue(1);
+  // jsdom has no blob URLs, and the download only needs one to point at.
+  URL.createObjectURL = vi.fn(() => "blob:plantilla");
+  URL.revokeObjectURL = vi.fn();
 });
 afterEach(cleanup);
 
@@ -79,18 +83,47 @@ describe("import page", () => {
     expect(screen.getByText("alumnos.csv")).toBeTruthy();
   });
 
-  it("offers the template download next to the upload", () => {
+  it("downloads the template as a real workbook", async () => {
+    // jsdom cannot navigate, and the download only needs the anchor click to happen.
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /descargar plantilla/i }));
 
-    expect(screen.getByRole("button", { name: /descargar plantilla/i })).toBeTruthy();
+    await vi.waitFor(() => expect(click).toHaveBeenCalled());
+
+    await vi.waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+    const blob = (URL.createObjectURL as unknown as { mock: { calls: Array<[Blob]> } }).mock.calls[0]?.[0];
+    expect(blob?.type).toBe(SHEET_MIME);
   });
 
-  it("rejects a file that is not plain text", () => {
+  it("reads the completed workbook into the same preview", async () => {
+    const bytes = await buildStudentsWorkbook({
+      slots: ["14:00"],
+      rows: [["Maxi Salas", "2302666351", "fijo", "mensual", "8va", "Revés", "lunes", "14:00"]],
+    });
     renderPage();
-    const file = new File(["x"], "planilla.xlsx", { type: "application/vnd.ms-excel" });
+    const file = new File([bytes], "plantilla-alumnos.xlsx", { type: SHEET_MIME });
     fireEvent.change(screen.getByLabelText("Subir archivo de alumnos"), { target: { files: [file] } });
 
-    expect(toast.error).toHaveBeenCalledWith("Subí el archivo en formato CSV.");
+    expect(await screen.findByText("Maxi Salas")).toBeTruthy();
+    expect(screen.getByText("1 listo · 0 con problemas")).toBeTruthy();
+    expect(screen.getByText("plantilla-alumnos.xlsx")).toBeTruthy();
+  });
+
+  it("explains a workbook it cannot read", async () => {
+    renderPage();
+    const file = new File(["x"], "planilla.xlsx", { type: SHEET_MIME });
+    fireEvent.change(screen.getByLabelText("Subir archivo de alumnos"), { target: { files: [file] } });
+
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("No pudimos leer la planilla. Probá de nuevo."));
+  });
+
+  it("rejects a file that is neither a workbook nor text", () => {
+    renderPage();
+    const file = new File(["x"], "planilla.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("Subir archivo de alumnos"), { target: { files: [file] } });
+
+    expect(toast.error).toHaveBeenCalledWith("Subí la plantilla .xlsx o un archivo CSV.");
   });
 
   it("explains the broken rows and still offers the good ones", () => {

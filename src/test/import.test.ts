@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decodeImportFile, importTemplate, parseStudents } from "@/lib/import";
+import { decodeImportFile, parseStudents } from "@/lib/import";
 
 const header = "nombre\ttelefono\ttipo\tpago\tcategoria\tposicion\tdia\thora";
 
@@ -118,16 +118,14 @@ describe("importing students from pasted text", () => {
   });
 });
 
-describe("downloadable import template", () => {
-  it("ships a header row the parser accepts, with every column", () => {
-    const report = parseStudents(importTemplate());
-    const columns = importTemplate().split("\n")[1]?.trim().split(";") ?? [];
+describe("reading a completed file", () => {
+  it("reads a time that a spreadsheet stored as a fraction of a day", () => {
+    const report = parseStudents("nombre,dia,hora\nA,lunes,0.583333333333333\nB,martes,0.5\n", {
+      allowedSlots: ["14:00", "12:00"],
+    });
 
-    expect(report.error).toBeNull();
-    expect(report.rows).toHaveLength(0);
-    for (const column of ["nombre", "telefono", "tipo", "pago", "categoria", "posicion", "dia", "hora"]) {
-      expect(columns).toContain(column);
-    }
+    expect(report.rows.map((row) => row.recurringTime)).toEqual(["14:00", "12:00"]);
+    expect(report.rows.map((row) => row.error)).toEqual([null, null]);
   });
 
   it("ignores the instruction comment without shifting the line numbers", () => {
