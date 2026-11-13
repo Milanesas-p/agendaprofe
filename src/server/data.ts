@@ -6,6 +6,7 @@ import { db } from "./db";
 import { balanceDelta, canAddToLesson, slots, validSettings, MAX_STUDENTS_PER_LESSON, type ClassStatus } from "@/lib/rules";
 import { normalizePhone } from "@/lib/phone";
 import { datesToGenerate } from "@/lib/recurrence";
+import { LESSON_WINDOW_FUTURE_DAYS, LESSON_WINDOW_PAST_DAYS } from "@/lib/lesson-window";
 import { CATEGORIES, COURT_SIDES, type Category, type CourtSide } from "@/lib/player";
 
 export type StudentDto = {
@@ -218,8 +219,11 @@ export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): P
     [ownerId],
   );
   const [lessonRows] = await db().execute(
-    "SELECT id, lesson_date, start_time, student_id, status, notified_at IS NOT NULL AS notified FROM lessons WHERE owner_id = ? ORDER BY lesson_date, start_time",
-    [ownerId],
+    `SELECT id, lesson_date, start_time, student_id, status, notified_at IS NOT NULL AS notified
+      FROM lessons WHERE owner_id = ?
+        AND lesson_date BETWEEN DATE_SUB(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+      ORDER BY lesson_date, start_time`,
+    [ownerId, LESSON_WINDOW_PAST_DAYS, LESSON_WINDOW_FUTURE_DAYS],
   );
   const students = (studentRows as RawStudentRow[]).map((s) => ({
     id: s.id,

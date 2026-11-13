@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/AppShell";
+import { LESSON_WINDOW_NOTE } from "@/lib/lesson-window";
 import { useStore, balanceLabel } from "@/lib/store";
 
 export const Route = createFileRoute("/resumen")({
@@ -33,6 +34,7 @@ function Resumen() {
         <Stat label="A favor" value={`+${credit}`} tone="text-court" />
         <Stat label="Adeudadas" value={debt} tone="text-destructive" />
       </div>
+      <p className="px-4 pt-3 text-xs text-muted-foreground lg:px-6">{LESSON_WINDOW_NOTE}</p>
 
       <div className="lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:px-6">
         <Section title="Por alumno">

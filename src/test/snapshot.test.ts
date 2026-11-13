@@ -66,6 +66,16 @@ describe("getSnapshot mapping", () => {
     });
   });
 
+  it("asks for a bounded window of lessons instead of every row ever saved", async () => {
+    await getSnapshot._handler();
+
+    const [sql, params] = execute.mock.calls[1] as [string, unknown[]];
+    expect(sql).toContain(
+      "BETWEEN DATE_SUB(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)",
+    );
+    expect(params).toEqual(["owner-1", 180, 120]);
+  });
+
   it("turns missing optional columns into null instead of undefined", async () => {
     execute.mockReset();
     execute
