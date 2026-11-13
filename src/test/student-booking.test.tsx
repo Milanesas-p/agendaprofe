@@ -40,6 +40,17 @@ function chooseLesson() {
   fireEvent.change(screen.getByLabelText("Día de la clase"), { target: { value: "2026-11-02" } });
   fireEvent.change(screen.getByLabelText("Horario"), { target: { value: "09:00" } });
 }
+describe("payment modes in the editor", () => {
+  it("offers the three modes the teacher uses", () => {
+    openEditor();
+
+    expect(screen.getByRole("button", { name: "Mensual" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Pago individual" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Paga grupal" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Semanal" })).toBeNull();
+  });
+});
+
 describe("booking from student form", () => {
   it("saves four paid classes and books the selected date and time for that student", async () => {
     openEditor();
@@ -95,7 +106,7 @@ describe("booking is only offered for a fijo student", () => {
     openEditor();
     expect(screen.getByRole("switch", { name: "Agregar clase a la agenda" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "rotativo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rotativo" }));
 
     expect(screen.queryByRole("switch", { name: "Agregar clase a la agenda" })).toBeNull();
     expect(screen.getByRole("button", { name: "Guardar" })).toBeTruthy();
@@ -104,7 +115,7 @@ describe("booking is only offered for a fijo student", () => {
   it("does not book a class chosen before switching the student to rotativo", async () => {
     openEditor();
     chooseLesson();
-    fireEvent.click(screen.getByRole("button", { name: "rotativo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rotativo" }));
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
     await waitFor(() => expect(store.addStudent).toHaveBeenCalled());

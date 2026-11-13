@@ -5,9 +5,10 @@ import { Plus, Minus, UserPlus, Search, Pencil, Upload } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Sheet } from "@/components/Sheet";
 import { matchesStudent, weeklySlotLabel, WEEKDAYS } from "@/lib/agenda";
-import { useStore, slots, iso, type Student, type Category, type CourtSide } from "@/lib/store";
+import { useStore, slots, iso, PAY_MODES, type Student, type Category, type CourtSide } from "@/lib/store";
 import { CATEGORIES, COURT_SIDES, courtSideLabel } from "@/lib/player";
 import { canAddToLesson } from "@/lib/rules";
+import { payLabel } from "@/lib/pay";
 import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/alumnos")({
@@ -125,10 +126,10 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
       onClose();
     } finally { setSubmitting(false); }
   }
-  const seg = <K extends "type" | "pay">(k: K, opts: Student[K][]) => (
-    <div className="grid grid-cols-2 gap-2">
+  const seg = <K extends "type" | "pay">(k: K, opts: Array<{ value: Student[K]; label: string }>) => (
+    <div className={`grid gap-2 ${opts.length > 2 ? "grid-cols-3" : "grid-cols-2"}`}>
       {opts.map((o) => (
-        <Button variant="ghost" key={o} onClick={() => setF({ ...f, [k]: o })} className={`h-11 rounded-lg text-sm font-semibold capitalize ${f[k] === o ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>{o}</Button>
+        <Button variant="ghost" key={o.value} onClick={() => setF({ ...f, [k]: o.value })} className={`h-11 rounded-lg px-2 text-[13px] font-semibold leading-tight ${f[k] === o.value ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>{o.label}</Button>
       ))}
     </div>
   );
@@ -138,8 +139,8 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
         <fieldset disabled={submitting || busy || Boolean(savedId)} className="space-y-4">
         <input aria-label="Nombre y apellido" placeholder="Nombre y apellido" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]" />
         <input type="tel" inputMode="tel" aria-label="Teléfono" placeholder="Teléfono (opcional)" value={f.phone ?? ""} onChange={(e) => setF({ ...f, phone: e.target.value === "" ? null : e.target.value })} className="h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]" />
-        {seg("type", ["fijo", "rotativo"])}
-        {seg("pay", ["mensual", "semanal"])}
+        {seg("type", [{ value: "fijo", label: "Fijo" }, { value: "rotativo", label: "Rotativo" }])}
+        {seg("pay", PAY_MODES.map((mode) => ({ value: mode, label: payLabel(mode) })))}
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-sm font-semibold">Categoría
             <select

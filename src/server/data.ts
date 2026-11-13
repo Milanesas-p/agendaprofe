@@ -8,13 +8,14 @@ import { normalizePhone } from "@/lib/phone";
 import { datesToGenerate } from "@/lib/recurrence";
 import { LESSON_WINDOW_FUTURE_DAYS, LESSON_WINDOW_PAST_DAYS } from "@/lib/lesson-window";
 import { CATEGORIES, COURT_SIDES, type Category, type CourtSide } from "@/lib/player";
+import { PAY_MODES, type PayMode } from "@/lib/pay";
 import { isStudentId } from "@/lib/import";
 
 export type StudentDto = {
   id: string;
   name: string;
   type: "fijo" | "rotativo";
-  pay: "mensual" | "semanal";
+  pay: PayMode;
   phone: string | null;
   /** Padel category and court side, or null when the teacher did not set them. */
   category: Category | null;
@@ -271,7 +272,7 @@ export const addStudent = createServerFn({ method: "POST" })
     return {
       name: text(raw["name"], "nombre", 120),
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
-      pay: oneOf(raw["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
+      pay: oneOf(raw["pay"], PAY_MODES, "modalidad de pago"),
       phone: normalizePhone(raw["phone"]),
       ...playerProfile(raw),
       ...recurringSlot(raw),
@@ -295,7 +296,7 @@ export const updateStudent = createServerFn({ method: "POST" })
       id: rowId(raw["id"]),
       name: text(raw["name"], "nombre", 120),
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
-      pay: oneOf(raw["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
+      pay: oneOf(raw["pay"], PAY_MODES, "modalidad de pago"),
       phone: normalizePhone(raw["phone"]),
       ...playerProfile(raw),
       ...recurringSlot(raw),
@@ -639,7 +640,7 @@ export const importStudents = createServerFn({ method: "POST" })
         id: optionalStudentId(student["id"]),
         name: text(student["name"], "nombre", 120),
         type: oneOf(student["type"], ["fijo", "rotativo"] as const, "tipo"),
-        pay: oneOf(student["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
+        pay: oneOf(student["pay"], PAY_MODES, "modalidad de pago"),
         phone: normalizePhone(student["phone"]),
         ...playerProfile(student),
         ...recurringSlot(student),

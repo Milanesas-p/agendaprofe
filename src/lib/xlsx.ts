@@ -12,6 +12,7 @@
 import { TEMPLATE_COLUMNS, type TemplateColumn } from "@/lib/import";
 import { WEEKDAYS } from "@/lib/agenda";
 import { CATEGORIES, COURT_SIDES, courtSideLabel } from "@/lib/player";
+import { PAY_MODES, payLabel } from "@/lib/pay";
 
 const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
 const NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
@@ -31,7 +32,7 @@ const LAST_ROW = 201;
 const DOS_DATE = 22561;
 
 const TYPE_OPTIONS = ["fijo", "rotativo"] as const;
-const PAY_OPTIONS = ["mensual", "semanal"] as const;
+const PAY_OPTIONS = PAY_MODES.map(payLabel);
 const SIDE_OPTIONS = COURT_SIDES.map(courtSideLabel);
 
 /** The dropdown order: Monday first, lowercase, the way the sheet reads. */

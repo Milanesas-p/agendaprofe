@@ -157,6 +157,13 @@ describe("importing validator", () => {
     ).toThrow("Hay alumnos repetidos en la plantilla.");
   });
 
+  it("accepts the three payment modes and rejects the retired one", () => {
+    expect(() => importStudents._validate({ students: [student({ pay: "grupal" })] })).not.toThrow();
+    expect(() => importStudents._validate({ students: [student({ pay: "semanal" })] })).toThrow(
+      "Dato inválido: modalidad de pago.",
+    );
+  });
+
   it("accepts rows without id", () => {
     const result = importStudents._validate({ students: [student(), student({ id: ID })] });
 

@@ -104,10 +104,10 @@ describe("student list", () => {
   });
 
   it("keeps payment out of the row: it belongs to the editor", () => {
-    store.students = [student({ pay: "semanal" })];
+    store.students = [student({ pay: "grupal" })];
     renderPage();
 
-    expect(screen.queryByText("semanal")).toBeNull();
+    expect(screen.queryByText("Paga grupal")).toBeNull();
   });
   it("offers the import shortcut next to a new student", () => {
     renderPage();

@@ -9,6 +9,8 @@
 
 import { CATEGORIES, COURT_SIDES, type Category, type CourtSide } from "@/lib/player";
 import { normalizePhone } from "@/lib/phone";
+import { payOf, type PayMode } from "@/lib/pay";
+import { fold } from "@/lib/text";
 
 export type ImportRow = {
   /** 1-based line in the pasted text, so the teacher finds it. */
@@ -18,7 +20,7 @@ export type ImportRow = {
   name: string;
   phone: string | null;
   type: "fijo" | "rotativo";
-  pay: "mensual" | "semanal";
+  pay: PayMode;
   category: Category | null;
   courtSide: CourtSide | null;
   recurringWeekday: number | null;
@@ -70,14 +72,6 @@ const HEADINGS: Record<Column, readonly string[]> = {
 };
 
 const WEEKDAY_NAMES = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
-
-/** Loose comparison: no accents, no case, no surrounding spaces. */
-const fold = (value: string): string =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
 
 function splitRow(line: string, delimiter: string): string[] {
   const cells: string[] = [];
@@ -227,8 +221,8 @@ function readRow(line: number, cells: Cells, allowedSlots: readonly string[]): I
   }
 
   if (raw.pago !== "") {
-    const pay = fold(raw.pago);
-    if (pay !== "mensual" && pay !== "semanal") return fail(`Pago inválido: ${raw.pago}. Usá mensual o semanal.`);
+    const pay = payOf(raw.pago);
+    if (!pay) return fail(`Pago inválido: ${raw.pago}. Usá Mensual, Pago individual o Paga grupal.`);
     row.pay = pay;
   }
 

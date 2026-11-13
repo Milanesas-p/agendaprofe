@@ -18,13 +18,13 @@ import {
 import { completeTour, getCurrentUser, loginUser, logoutUser, type AuthUser } from "@/server/auth";
 import { balanceDelta, slots, validSettings, type ClassStatus } from "./rules";
 import type { Category, CourtSide } from "./player";
+import { PAY_MODES, type PayMode } from "./pay";
 
-export { slots, validSettings };
+export { slots, validSettings, PAY_MODES };
 export type { ClassStatus };
-export type { Category, CourtSide };
+export type { Category, CourtSide, PayMode };
 
 export type StudentType = "fijo" | "rotativo";
-export type PayMode = "mensual" | "semanal";
 export type Student = {
   id: string;
   name: string;

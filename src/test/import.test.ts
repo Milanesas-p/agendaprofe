@@ -47,6 +47,21 @@ describe("importing students from pasted text", () => {
     expect(report.rows[0]).toMatchObject({ type: "rotativo", pay: "mensual", category: null, courtSide: null });
   });
 
+  it("reads the three payment modes from their labels", () => {
+    const report = parseStudents(
+      "nombre,pago\nA,Mensual\nB,Pago individual\nC,Paga grupal\nD,semanal\n",
+      { allowedSlots: [] },
+    );
+
+    expect(report.rows.map((row) => row.pay)).toEqual(["mensual", "individual", "grupal", "mensual"]);
+    expect(report.rows.map((row) => row.error)).toEqual([
+      null,
+      null,
+      null,
+      "Pago inválido: semanal. Usá Mensual, Pago individual o Paga grupal.",
+    ]);
+  });
+
   it("defaults to fijo when the row carries a weekly slot", () => {
     const report = parseStudents("nombre,dia,hora\nMaxi Salas,viernes,18:00\n", { allowedSlots: ["18:00"] });
 

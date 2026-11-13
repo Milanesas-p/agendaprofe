@@ -54,7 +54,7 @@ describe("students workbook", () => {
       "H2:H201",
     ]);
     expect(lists["C2:C201"]).toBe('"fijo,rotativo"');
-    expect(lists["D2:D201"]).toBe('"mensual,semanal"');
+    expect(lists["D2:D201"]).toBe('"Mensual,Pago individual,Paga grupal"');
     expect(lists["E2:E201"]).toBe('"1ra,2da,3ra,4ta,5ta,6ta,7ma,8va"');
     expect(lists["F2:F201"]).toBe('"Drive,Revés,Indistinto"');
     expect(lists["G2:G201"]).toBe('"lunes,martes,miércoles,jueves,viernes,sábado,domingo"');

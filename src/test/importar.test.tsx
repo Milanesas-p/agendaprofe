@@ -132,7 +132,7 @@ describe("import page", () => {
       "Maxi Salas",
       "5492302666351",
       "fijo",
-      "mensual",
+      "Mensual",
       "8va",
       "Revés",
       "lunes",

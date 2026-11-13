@@ -7,6 +7,7 @@ import { slots, useStore, type ImportedStudent } from "@/lib/store";
 import { decodeImportFile, parseStudents } from "@/lib/import";
 import { buildStudentsWorkbook, isXlsxBytes, readStudentsWorkbook, rowsToTsv, SHEET_FILE_NAME, SHEET_MIME, weekdayLabel } from "@/lib/xlsx";
 import { courtSideLabel, profileLabel } from "@/lib/player";
+import { payLabel } from "@/lib/pay";
 import { weeklySlotLabel } from "@/lib/agenda";
 
 export const Route = createFileRoute("/importar")({
@@ -62,7 +63,7 @@ function Importar() {
         student.name,
         student.phone ?? "",
         student.type,
-        student.pay,
+        payLabel(student.pay),
         student.category ?? "",
         student.courtSide ? courtSideLabel(student.courtSide) : "",
         student.recurringWeekday === null ? "" : weekdayLabel(student.recurringWeekday),

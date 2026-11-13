@@ -63,7 +63,7 @@ CREATE TABLE students (
         AND recurring_time REGEXP '^([01][0-9]|2[0-3]):[0-5][0-9]$')
   ),
   CONSTRAINT students_type CHECK (type IN ('fijo', 'rotativo')),
-  CONSTRAINT students_pay CHECK (pay IN ('mensual', 'semanal')),
+  CONSTRAINT students_pay CHECK (pay IN ('mensual', 'individual', 'grupal')),
   CONSTRAINT students_category CHECK (
     category IS NULL OR category IN ('1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va')
   ),
