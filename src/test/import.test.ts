@@ -93,6 +93,22 @@ describe("importing students from pasted text", () => {
     expect(report.rows[0]).toMatchObject({ line: 3, name: "Maxi Salas", phone: "5492302666351" });
   });
 
+  it("reads the time the way Google Sheets exports it", () => {
+    const report = parseStudents(
+      "nombre,dia,hora\nA,lunes,14:00:00\nB,martes,2:00 PM\nC,miercoles,2:00 p. m.\nD,jueves,12:30 a. m.\n",
+      { allowedSlots: ["14:00", "00:30"] },
+    );
+
+    expect(report.rows.map((r) => r.error)).toEqual([null, null, null, null]);
+    expect(report.rows.map((r) => r.recurringTime)).toEqual(["14:00", "14:00", "14:00", "00:30"]);
+  });
+
+  it("rejects a twelve-hour time that does not exist", () => {
+    const report = parseStudents("nombre,dia,hora\nMaxi Salas,lunes,13:00 PM\n", { allowedSlots: [] });
+
+    expect(report.rows[0]?.error).toBe("Hora inválida: 13:00 PM. Usá HH:MM.");
+  });
+
   it("reads weekday names without accents or in numbers", () => {
     const report = parseStudents("nombre,dia,hora\nA,miercoles,09:00\nB,Miércoles,09:00\nC,3,09:00\n", {
       allowedSlots: ["09:00"],

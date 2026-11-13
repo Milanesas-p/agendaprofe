@@ -129,10 +129,25 @@ function weekdayOf(value: string): number | null {
   return prefix >= 0 ? prefix : null;
 }
 
+/**
+ * `14:00`, `14:00:00`, `2:00 PM` or `2:00 p. m.` → `HH:MM`; anything else → null.
+ * Google Sheets turns a typed time into a value and exports it with seconds or
+ * with a twelve-hour meridiem, so both shapes have to survive the round trip.
+ */
 function timeOf(value: string): string | null {
-  const match = /^([01]?\d|2[0-3])[:.h]([0-5]\d)$/.exec(value.trim());
-  if (!match) return null;
-  return `${match[1]!.padStart(2, "0")}:${match[2]}`;
+  const text = fold(value);
+  const twelveHour = /^(\d{1,2})[:.h](\d{2})(?::\d{2})?\s*([ap])\.?\s*m?\.?$/.exec(text);
+  if (twelveHour) {
+    const hour = Number(twelveHour[1]);
+    const minute = Number(twelveHour[2]);
+    if (hour < 1 || hour > 12 || minute > 59) return null;
+    const twentyFour = (hour % 12) + (twelveHour[3] === "p" ? 12 : 0);
+    return `${String(twentyFour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  const twentyFourHour = /^([01]?\d|2[0-3])[:.h]([0-5]\d)(?::[0-5]\d)?$/.exec(text);
+  if (!twentyFourHour) return null;
+  return `${twentyFourHour[1]!.padStart(2, "0")}:${twentyFourHour[2]}`;
 }
 
 function categoryOf(value: string): Category | null {
