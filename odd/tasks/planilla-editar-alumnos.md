@@ -1,7 +1,7 @@
 # Editar alumnos desde la planilla descargada
 
 Objetivo: que la plantilla .xlsx venga pre-cargada con los alumnos actuales, y que al volver a subirla se **actualicen** esos alumnos en vez de duplicarlos.
-Estado: **implementado** (T1-T4). Branch: `migracion-node-mysql`. Runner: `npm test` (Vitest, jsdom).
+Estado: **implementado** (T1-T4, commit `f87e0b1`). Branch: `migracion-node-mysql`. Runner: `npm test` (Vitest, jsdom).
 
 ## Specs
 
