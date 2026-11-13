@@ -1,7 +1,7 @@
 # Plantilla .xlsx con desplegables para importar alumnos
 
 Objetivo: que la plantilla descargable sea una planilla .xlsx con menús desplegables en las columnas cerradas, y que el archivo completado se pueda subir tal cual, sin exportarlo a CSV.
-Estado: **en curso** (T1-T4). Branch: `migracion-node-mysql`. Runner: `npm test` (Vitest, jsdom).
+Estado: **implementado** (T1-T4, commit `250514f`). Branch: `migracion-node-mysql`. Runner: `npm test` (Vitest, jsdom).
 
 ## Specs
 
