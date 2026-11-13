@@ -22,6 +22,11 @@ CREATE TABLE users (
   -- NULL until the welcome tour is finished or skipped: the tour only shows on
   -- the first sessions of an account.
   tour_done_at  TIMESTAMP    NULL,
+  -- Login throttle, decided with MySQL's clock: consecutive failures, when the
+  -- last one happened (to expire the streak) and until when the account is parked.
+  failed_logins INT          NOT NULL DEFAULT 0,
+  last_failed_at DATETIME    NULL,
+  locked_until  DATETIME     NULL,
   created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY users_email (email)
