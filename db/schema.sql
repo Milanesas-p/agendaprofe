@@ -65,7 +65,9 @@ CREATE TABLE students (
   CONSTRAINT students_type CHECK (type IN ('fijo', 'rotativo')),
   CONSTRAINT students_pay CHECK (pay IN ('mensual', 'individual', 'grupal')),
   CONSTRAINT students_category CHECK (
-    category IS NULL OR category IN ('1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va')
+    category IS NULL OR category IN (
+      '1ra', '2da', '3ra', '4ta', '5ta', '6ta', '6ta firme', '7ma', '7ma firme', '8va', '8va firme'
+    )
   ),
   CONSTRAINT students_court_side CHECK (
     court_side IS NULL OR court_side IN ('drive', 'reves', 'indistinto')

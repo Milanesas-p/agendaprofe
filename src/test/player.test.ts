@@ -3,7 +3,19 @@ import { CATEGORIES, COURT_SIDES, courtSideLabel, profileLabel } from "@/lib/pla
 
 describe("player profile", () => {
   it("lists the categories from first to eighth", () => {
-    expect(CATEGORIES).toEqual(["1ra", "2da", "3ra", "4ta", "5ta", "6ta", "7ma", "8va"]);
+    expect(CATEGORIES).toEqual([
+      "1ra",
+      "2da",
+      "3ra",
+      "4ta",
+      "5ta",
+      "6ta firme",
+      "6ta",
+      "7ma firme",
+      "7ma",
+      "8va firme",
+      "8va",
+    ]);
   });
 
   it("labels every court side the way the teacher reads it", () => {

@@ -6,7 +6,23 @@
  * labels are what the teacher reads.
  */
 
-export const CATEGORIES = ["1ra", "2da", "3ra", "4ta", "5ta", "6ta", "7ma", "8va"] as const;
+/**
+ * Ordered from strongest to weakest. Within a level, `firme` ranks above the plain
+ * category (7ma firme > 7ma), but a whole level still dominates: 6ta > 7ma firme.
+ */
+export const CATEGORIES = [
+  "1ra",
+  "2da",
+  "3ra",
+  "4ta",
+  "5ta",
+  "6ta firme",
+  "6ta",
+  "7ma firme",
+  "7ma",
+  "8va firme",
+  "8va",
+] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 /** Stored without accents on purpose: `reves` is a value, `Revés` is a label. */

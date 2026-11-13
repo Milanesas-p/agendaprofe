@@ -62,6 +62,21 @@ describe("importing students from pasted text", () => {
     ]);
   });
 
+  it("reads the firme categories the teacher uses", () => {
+    const report = parseStudents(
+      "nombre,categoria\nA,6ta firme\nB,7ma firme\nC,8va firme\nD,8va Firme\n",
+      { allowedSlots: [] },
+    );
+
+    expect(report.rows.map((row) => row.category)).toEqual([
+      "6ta firme",
+      "7ma firme",
+      "8va firme",
+      "8va firme",
+    ]);
+    expect(report.rows.map((row) => row.error)).toEqual([null, null, null, null]);
+  });
+
   it("defaults to fijo when the row carries a weekly slot", () => {
     const report = parseStudents("nombre,dia,hora\nMaxi Salas,viernes,18:00\n", { allowedSlots: ["18:00"] });
 
