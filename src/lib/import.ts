@@ -13,6 +13,8 @@ import { normalizePhone } from "@/lib/phone";
 export type ImportRow = {
   /** 1-based line in the pasted text, so the teacher finds it. */
   line: number;
+  /** Existing student this row updates, or null when the row creates one. */
+  id: string | null;
   name: string;
   phone: string | null;
   type: "fijo" | "rotativo";
@@ -35,8 +37,12 @@ export type ImportReport = {
 export const HEADER_ERROR = "La primera fila tiene que traer los títulos de las columnas.";
 
 /** Columns of the downloadable template, in the order the screen lists them. */
-export const TEMPLATE_COLUMNS = ["nombre", "telefono", "tipo", "pago", "categoria", "posicion", "dia", "hora"] as const;
+export const TEMPLATE_COLUMNS = ["nombre", "telefono", "tipo", "pago", "categoria", "posicion", "dia", "hora", "id"] as const;
 export type TemplateColumn = (typeof TEMPLATE_COLUMNS)[number];
+
+/** The shape the server stores for a student id, shared by both sides. */
+export const STUDENT_ID_PATTERN = /^[0-9a-fA-F-]{36}$/;
+export const isStudentId = (value: string): boolean => STUDENT_ID_PATTERN.test(value);
 
 /**
  * Decodes a file the teacher completed. Excel writes UTF-8 only when asked, so a
@@ -48,7 +54,7 @@ export function decodeImportFile(buffer: ArrayBuffer): string {
   return utf8.includes("\uFFFD") ? strip(new TextDecoder("windows-1252").decode(buffer)) : utf8;
 }
 
-type Column = "nombre" | "telefono" | "tipo" | "pago" | "categoria" | "posicion" | "dia" | "hora";
+type Column = "nombre" | "telefono" | "tipo" | "pago" | "categoria" | "posicion" | "dia" | "hora" | "id";
 
 /** Every accepted heading, already normalized (no accents, lowercase). */
 const HEADINGS: Record<Column, readonly string[]> = {
@@ -60,6 +66,7 @@ const HEADINGS: Record<Column, readonly string[]> = {
   posicion: ["posicion", "lado", "cancha"],
   dia: ["dia", "dia fijo", "semana"],
   hora: ["hora", "horario"],
+  id: ["id"],
 };
 
 const WEEKDAY_NAMES = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
@@ -174,10 +181,12 @@ function readRow(line: number, cells: Cells, allowedSlots: readonly string[]): I
     posicion: cell("posicion"),
     dia: cell("dia"),
     hora: cell("hora"),
+    id: cell("id"),
   };
 
   const row: ImportRow = {
     line,
+    id: null,
     name: raw.nombre,
     phone: null,
     type: "rotativo",
@@ -189,6 +198,11 @@ function readRow(line: number, cells: Cells, allowedSlots: readonly string[]): I
     error: null,
   };
   const fail = (message: string): ImportRow => ({ ...row, error: message });
+
+  if (raw.id !== "") {
+    if (!isStudentId(raw.id)) return fail("El id no es válido. No edites esa columna.");
+    row.id = raw.id;
+  }
 
   if (raw.nombre === "") return fail("Falta el nombre.");
 
@@ -246,13 +260,16 @@ function readRow(line: number, cells: Cells, allowedSlots: readonly string[]): I
 
 /**
  * Parses the paste. `allowedSlots` are the configured blocks: a weekly slot outside
- * them would never generate a class, so it is reported instead of saved.
+ * them would never generate a class, so it is reported instead of saved. `knownIds`
+ * are the students that still exist, so an id that no longer does cannot turn into
+ * a duplicate on the next import.
  */
 export function parseStudents(
   text: string,
-  options: { allowedSlots?: readonly string[] } = {},
+  options: { allowedSlots?: readonly string[]; knownIds?: ReadonlySet<string> } = {},
 ): ImportReport {
   const allowedSlots = options.allowedSlots ?? [];
+  const knownIds = options.knownIds;
   const lines = text.split(/\r?\n/);
   // Comments keep the downloaded template self-explanatory without becoming rows.
   const nonEmpty = lines
@@ -270,13 +287,21 @@ export function parseStudents(
   }
   if (columns.nombre === undefined) return { rows: [], ready: [], error: HEADER_ERROR };
 
+  const seen = new Set<string>();
   const rows = nonEmpty.slice(1).map(({ line, number }) => {
     const cells = splitRow(line, delimiter);
     const values: Cells = {};
     for (const [column, index] of Object.entries(columns) as Array<[Column, number]>) {
       values[column] = cells[index] ?? "";
     }
-    return readRow(number, values, allowedSlots);
+    const row = readRow(number, values, allowedSlots);
+    if (row.id === null) return row;
+    if (seen.has(row.id)) return { ...row, error: row.error ?? "Este alumno está repetido en la plantilla." };
+    seen.add(row.id);
+    if (knownIds && !knownIds.has(row.id)) {
+      return { ...row, error: row.error ?? "Ese alumno ya no existe. Volvé a descargar la plantilla." };
+    }
+    return row;
   });
 
   return { rows, ready: rows.filter((r) => r.error === null), error: null };

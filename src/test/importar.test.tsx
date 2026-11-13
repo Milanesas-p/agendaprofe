@@ -3,12 +3,38 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { Route } from "@/routes/importar";
-import { buildStudentsWorkbook, SHEET_MIME } from "@/lib/xlsx";
+import { buildStudentsWorkbook, readStudentsWorkbook, SHEET_MIME } from "@/lib/xlsx";
+import type { Student } from "@/lib/store";
+
+const maxi: Student = {
+  id: "11111111-1111-4111-8111-111111111111",
+  name: "Maxi Salas",
+  type: "fijo",
+  pay: "mensual",
+  phone: "5492302666351",
+  category: "8va",
+  courtSide: "reves",
+  recurringWeekday: 1,
+  recurringTime: "14:00",
+  balance: 4,
+};
 
 const { store, navigate } = vi.hoisted(() => ({
   navigate: vi.fn(),
   store: {
     settings: { startHour: 8, endHour: 17, blockMin: 60, breakStart: null, breakEnd: null, noticeTemplate: null },
+    students: [] as Array<{
+      id: string;
+      name: string;
+      type: string;
+      pay: string;
+      phone: string | null;
+      category: string | null;
+      courtSide: string | null;
+      recurringWeekday: number | null;
+      recurringTime: string | null;
+      balance: number;
+    }>,
     busy: false,
     importStudents: vi.fn(),
   },
@@ -56,6 +82,7 @@ const paste = (text: string) => {
 beforeEach(() => {
   vi.clearAllMocks();
   store.settings = { startHour: 8, endHour: 17, blockMin: 60, breakStart: null, breakEnd: null, noticeTemplate: null };
+  store.students = [];
   store.importStudents.mockResolvedValue(1);
   // jsdom has no blob URLs, and the download only needs one to point at.
   URL.createObjectURL = vi.fn(() => "blob:plantilla");
@@ -83,7 +110,8 @@ describe("import page", () => {
     expect(screen.getByText("alumnos.csv")).toBeTruthy();
   });
 
-  it("downloads the template as a real workbook", async () => {
+  it("downloads the template with the current students", async () => {
+    store.students = [maxi];
     // jsdom cannot navigate, and the download only needs the anchor click to happen.
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     renderPage();
@@ -91,9 +119,26 @@ describe("import page", () => {
 
     await vi.waitFor(() => expect(click).toHaveBeenCalled());
 
-    await vi.waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
     const blob = (URL.createObjectURL as unknown as { mock: { calls: Array<[Blob]> } }).mock.calls[0]?.[0];
     expect(blob?.type).toBe(SHEET_MIME);
+    const buffer = await new Promise<ArrayBuffer>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.readAsArrayBuffer(blob!);
+    });
+    const rows = await readStudentsWorkbook(new Uint8Array(buffer));
+
+    expect(rows[1]).toEqual([
+      "Maxi Salas",
+      "5492302666351",
+      "fijo",
+      "mensual",
+      "8va",
+      "Revés",
+      "lunes",
+      "14:00",
+      maxi.id,
+    ]);
   });
 
   it("reads the completed workbook into the same preview", async () => {
@@ -108,6 +153,21 @@ describe("import page", () => {
     expect(await screen.findByText("Maxi Salas")).toBeTruthy();
     expect(screen.getByText("1 listo · 0 con problemas")).toBeTruthy();
     expect(screen.getByText("plantilla-alumnos.xlsx")).toBeTruthy();
+  });
+
+  it("marks a row that updates an existing student", async () => {
+    store.students = [maxi];
+    const bytes = await buildStudentsWorkbook({
+      slots: ["14:00"],
+      rows: [["Maxi Salas", "5492302666351", "fijo", "mensual", "8va", "Revés", "lunes", "14:00", maxi.id]],
+    });
+    renderPage();
+    const file = new File([bytes], "plantilla-alumnos.xlsx", { type: SHEET_MIME });
+    fireEvent.change(screen.getByLabelText("Subir archivo de alumnos"), { target: { files: [file] } });
+
+    expect(await screen.findByText("Actualiza")).toBeTruthy();
+    expect(screen.getByText("0 nuevos · 1 para actualizar · 0 con problemas")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Guardar 1 alumno" })).toBeTruthy();
   });
 
   it("explains a workbook it cannot read", async () => {
@@ -151,6 +211,7 @@ describe("import page", () => {
     await vi.waitFor(() => expect(store.importStudents).toHaveBeenCalledTimes(1));
     expect(store.importStudents.mock.calls[0]?.[0]).toEqual([
       {
+        id: null,
         name: "Maxi Salas",
         phone: "5492302666351",
         type: "fijo",

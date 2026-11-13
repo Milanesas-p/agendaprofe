@@ -10,6 +10,7 @@
  */
 
 import { TEMPLATE_COLUMNS, type TemplateColumn } from "@/lib/import";
+import { WEEKDAYS } from "@/lib/agenda";
 import { CATEGORIES, COURT_SIDES, courtSideLabel } from "@/lib/player";
 
 const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
@@ -32,18 +33,19 @@ const DOS_DATE = 22561;
 const TYPE_OPTIONS = ["fijo", "rotativo"] as const;
 const PAY_OPTIONS = ["mensual", "semanal"] as const;
 const SIDE_OPTIONS = COURT_SIDES.map(courtSideLabel);
-const WEEKDAY_OPTIONS = [
-  "lunes",
-  "martes",
-  "miércoles",
-  "jueves",
-  "viernes",
-  "sábado",
-  "domingo",
-] as const;
+
+/** The dropdown order: Monday first, lowercase, the way the sheet reads. */
+export const WEEKDAY_OPTIONS: string[] = [1, 2, 3, 4, 5, 6, 0].map((day) =>
+  WEEKDAYS[day]!.toLowerCase(),
+);
+
+/** Stored weekday number (0 = Sunday) → the label the sheet carries. */
+export function weekdayLabel(day: number): string {
+  return WEEKDAYS[day]?.toLowerCase() ?? "";
+}
 
 /** Widths for the template columns, in the same order. */
-const COLUMN_WIDTHS = [30, 16, 12, 12, 12, 14, 14, 10];
+const COLUMN_WIDTHS = [30, 16, 12, 12, 12, 14, 14, 10, 38];
 
 export type StudentsWorkbookOptions = {
   /** Configured blocks offered in the `hora` dropdown; empty leaves it free. */

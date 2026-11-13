@@ -8,6 +8,7 @@ import { normalizePhone } from "@/lib/phone";
 import { datesToGenerate } from "@/lib/recurrence";
 import { LESSON_WINDOW_FUTURE_DAYS, LESSON_WINDOW_PAST_DAYS } from "@/lib/lesson-window";
 import { CATEGORIES, COURT_SIDES, type Category, type CourtSide } from "@/lib/player";
+import { isStudentId } from "@/lib/import";
 
 export type StudentDto = {
   id: string;
@@ -165,6 +166,13 @@ function playerProfile(input: Record<string, unknown>): { category: Category | n
 
 function rowId(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-fA-F-]{36}$/.test(value)) throw new Error("Identificador inválido.");
+  return value;
+}
+
+/** The id of a student a row updates, or null when the row creates a new one. */
+function optionalStudentId(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string" || !isStudentId(value)) throw new Error("Identificador inválido.");
   return value;
 }
 
@@ -612,10 +620,12 @@ export const saveSettings = createServerFn({ method: "POST" })
   });
 
 /**
- * Creates many students in one transaction, all owned by the session user.
+ * Creates or updates many students in one transaction, all owned by the session user.
  *
- * The rows were already validated and previewed on the client; this repeats the
- * same field checks so a hand-made request cannot skip them.
+ * A row that carries a student id updates that student; a row without one creates a
+ * new student. The rows were already validated and previewed on the client; this
+ * repeats the same field checks so a hand-made request cannot skip them. The balance
+ * and the already booked lessons are never part of the import.
  */
 export const importStudents = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
@@ -623,39 +633,73 @@ export const importStudents = createServerFn({ method: "POST" })
     const list = raw["students"];
     if (!Array.isArray(list) || list.length === 0) throw new Error("No hay alumnos para importar.");
     if (list.length > 200) throw new Error("Importá hasta 200 alumnos por vez.");
-    return {
-      students: list.map((item) => {
-        const student = (item ?? {}) as Record<string, unknown>;
-        return {
-          name: text(student["name"], "nombre", 120),
-          type: oneOf(student["type"], ["fijo", "rotativo"] as const, "tipo"),
-          pay: oneOf(student["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
-          phone: normalizePhone(student["phone"]),
-          ...playerProfile(student),
-          ...recurringSlot(student),
-        };
-      }),
-    };
+    const students = list.map((item) => {
+      const student = (item ?? {}) as Record<string, unknown>;
+      return {
+        id: optionalStudentId(student["id"]),
+        name: text(student["name"], "nombre", 120),
+        type: oneOf(student["type"], ["fijo", "rotativo"] as const, "tipo"),
+        pay: oneOf(student["pay"], ["mensual", "semanal"] as const, "modalidad de pago"),
+        phone: normalizePhone(student["phone"]),
+        ...playerProfile(student),
+        ...recurringSlot(student),
+      };
+    });
+    // MySQL compares ids case-insensitively, so the duplicate check has to as well.
+    const keys = students.map((student) => student.id?.toLowerCase()).filter((id) => id !== undefined);
+    if (new Set(keys).size !== keys.length) throw new Error("Hay alumnos repetidos en la plantilla.");
+    return { students };
   })
   .handler(async ({ data }): Promise<number> => {
     const ownerId = await requireUserId();
     await withTransaction(async (connection) => {
+      const hasUpdates = data.students.some((student) => student.id !== null);
+      if (hasUpdates) {
+        // One lookup instead of a SELECT per row; an id of another owner never updates.
+        const [rows] = await connection.execute("SELECT id FROM students WHERE owner_id = ?", [ownerId]);
+        const owned = new Set((rows as Array<{ id: string }>).map((row) => row.id));
+        for (const student of data.students) {
+          if (student.id !== null && !owned.has(student.id)) {
+            throw new Error("Ese alumno ya no existe. Volvé a descargar la plantilla.");
+          }
+        }
+      }
+
       for (const student of data.students) {
-        await connection.execute(
-          "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, recurring_weekday, recurring_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
-          [
-            randomUUID(),
-            ownerId,
-            student.name,
-            student.type,
-            student.pay,
-            student.phone,
-            student.category,
-            student.courtSide,
-            student.weekday,
-            student.time,
-          ],
-        );
+        if (student.id !== null) {
+          await connection.execute(
+            `UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ?,
+               recurring_weekday = ?, recurring_time = ? WHERE id = ? AND owner_id = ?`,
+            [
+              student.name,
+              student.type,
+              student.pay,
+              student.phone,
+              student.category,
+              student.courtSide,
+              student.weekday,
+              student.time,
+              student.id,
+              ownerId,
+            ],
+          );
+        } else {
+          await connection.execute(
+            "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, recurring_weekday, recurring_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+            [
+              randomUUID(),
+              ownerId,
+              student.name,
+              student.type,
+              student.pay,
+              student.phone,
+              student.category,
+              student.courtSide,
+              student.weekday,
+              student.time,
+            ],
+          );
+        }
       }
     });
     return data.students.length;

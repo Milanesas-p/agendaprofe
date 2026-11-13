@@ -40,6 +40,8 @@ export type Student = {
   balance: number;
 };
 export type ImportedStudent = {
+  /** Existing student to update, or null to create a new one. */
+  id: string | null;
   name: string;
   phone: string | null;
   type: StudentType;

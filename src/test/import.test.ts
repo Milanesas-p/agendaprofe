@@ -118,6 +118,80 @@ describe("importing students from pasted text", () => {
   });
 });
 
+describe("editing students from the sheet", () => {
+  const ID = "11111111-1111-4111-8111-111111111111";
+
+  it("reads the id column and marks the row for update", () => {
+    const report = parseStudents(`nombre,telefono,id\nMaxi Salas,2302666351,${ID}`, {
+      allowedSlots: [],
+      knownIds: new Set([ID]),
+    });
+
+    expect(report.rows[0]).toMatchObject({ id: ID, name: "Maxi Salas", error: null });
+  });
+
+  it("creates a row that carries no id", () => {
+    const report = parseStudents("nombre,telefono\nMaxi Salas,2302666351", {
+      allowedSlots: [],
+      knownIds: new Set([ID]),
+    });
+
+    expect(report.rows[0]?.id).toBeNull();
+    expect(report.rows[0]?.error).toBeNull();
+  });
+
+  it("rejects an id that no longer exists instead of creating a duplicate", () => {
+    const report = parseStudents(`nombre,id\nMaxi Salas,${ID}`, { allowedSlots: [], knownIds: new Set() });
+
+    expect(report.rows[0]?.error).toBe("Ese alumno ya no existe. Volvé a descargar la plantilla.");
+    expect(report.ready).toHaveLength(0);
+  });
+
+  it("rejects the same student twice in one sheet", () => {
+    const report = parseStudents(`nombre,id\nA,${ID}\nB,${ID}`, {
+      allowedSlots: [],
+      knownIds: new Set([ID]),
+    });
+
+    expect(report.rows.map((row) => row.error)).toEqual([null, "Este alumno está repetido en la plantilla."]);
+    expect(report.ready).toHaveLength(1);
+  });
+
+  it("rejects an id that is not a student id", () => {
+    const report = parseStudents("nombre,id\nA,no-es-un-id", { allowedSlots: [], knownIds: new Set() });
+
+    expect(report.rows[0]?.error).toBe("El id no es válido. No edites esa columna.");
+  });
+
+  it("rejects an id with characters outside the stored shape", () => {
+    const report = parseStudents("nombre,id\nA,zzzzzzzz-zzzz-4zzz-8zzz-zzzzzzzzzzzz", {
+      allowedSlots: [],
+      knownIds: new Set(),
+    });
+
+    expect(report.rows[0]?.error).toBe("El id no es válido. No edites esa columna.");
+  });
+
+  it("accepts the id with surrounding spaces", () => {
+    const report = parseStudents(`nombre,id\nA,  ${ID}  `, { allowedSlots: [], knownIds: new Set([ID]) });
+
+    expect(report.rows[0]?.id).toBe(ID);
+    expect(report.rows[0]?.error).toBeNull();
+  });
+
+  it("flags the second row even when the first one already failed", () => {
+    const report = parseStudents(`nombre,id\n,${ID}\nB,${ID}`, {
+      allowedSlots: [],
+      knownIds: new Set([ID]),
+    });
+
+    expect(report.rows.map((row) => row.error)).toEqual([
+      "Falta el nombre.",
+      "Este alumno está repetido en la plantilla.",
+    ]);
+  });
+});
+
 describe("reading a completed file", () => {
   it("reads a time that a spreadsheet stored as a fraction of a day", () => {
     const report = parseStudents("nombre,dia,hora\nA,lunes,0.583333333333333\nB,martes,0.5\n", {

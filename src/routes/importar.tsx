@@ -5,8 +5,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { slots, useStore, type ImportedStudent } from "@/lib/store";
 import { decodeImportFile, parseStudents } from "@/lib/import";
-import { buildStudentsWorkbook, isXlsxBytes, readStudentsWorkbook, rowsToTsv, SHEET_FILE_NAME, SHEET_MIME } from "@/lib/xlsx";
-import { profileLabel } from "@/lib/player";
+import { buildStudentsWorkbook, isXlsxBytes, readStudentsWorkbook, rowsToTsv, SHEET_FILE_NAME, SHEET_MIME, weekdayLabel } from "@/lib/xlsx";
+import { courtSideLabel, profileLabel } from "@/lib/player";
 import { weeklySlotLabel } from "@/lib/agenda";
 
 export const Route = createFileRoute("/importar")({
@@ -29,28 +29,47 @@ const PLACEHOLDER = [
 ].join("\n");
 
 function Importar() {
-  const { settings, importStudents, busy } = useStore();
+  const { settings, students, importStudents, busy } = useStore();
   const navigate = useNavigate();
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
 
+  // An id that is no longer in the roster cannot silently become a duplicate.
+  const knownIds = useMemo(() => new Set(students.map((student) => student.id)), [students]);
   // The blocks decide whether a weekly slot can ever become a class.
-  const report = useMemo(() => parseStudents(text, { allowedSlots: slots(settings) }), [text, settings]);
+  const report = useMemo(
+    () => parseStudents(text, { allowedSlots: slots(settings), knownIds }),
+    [text, settings, knownIds],
+  );
   const ready = report.rows.length === 0 ? [] : report.ready;
   const broken = report.rows.length - ready.length;
+  const created = ready.filter((row) => row.id === null).length;
+  const updates = ready.length - created;
 
   async function run() {
     const rows = ready.map<ImportedStudent>(({ line: _line, error: _error, ...student }) => student);
     const count = await importStudents(rows);
     if (count === false) return;
-    toast.success(count === 1 ? "Se importó 1 alumno." : `Se importaron ${count} alumnos.`);
+    const verb = updates > 0 ? "guard" : "import";
+    toast.success(count === 1 ? `Se ${verb}ó 1 alumno.` : `Se ${verb}aron ${count} alumnos.`);
     navigate({ to: "/alumnos" });
   }
 
-  /** A real workbook, so the closed columns open with their dropdowns. */
+  /** A real workbook with the current roster, so the teacher edits and re-uploads it. */
   async function downloadTemplate() {
     try {
-      const bytes = await buildStudentsWorkbook({ slots: slots(settings) });
+      const rows = students.map((student) => [
+        student.name,
+        student.phone ?? "",
+        student.type,
+        student.pay,
+        student.category ?? "",
+        student.courtSide ? courtSideLabel(student.courtSide) : "",
+        student.recurringWeekday === null ? "" : weekdayLabel(student.recurringWeekday),
+        student.recurringTime ?? "",
+        student.id,
+      ]);
+      const bytes = await buildStudentsWorkbook({ slots: slots(settings), rows });
       const url = URL.createObjectURL(new Blob([bytes], { type: SHEET_MIME }));
       const link = document.createElement("a");
       link.href = url;
@@ -134,9 +153,8 @@ function Importar() {
             />
           </label>
           <p className="mt-2 text-xs text-muted-foreground">
-            Descargá la plantilla .xlsx (ya trae desplegables en tipo, pago, categoría, posición, día y hora), completá una fila por alumno y subila tal cual; también podés subir un CSV o pegar las filas desde Excel o Sheets. La plantilla ya trae los títulos de las columnas:
-            <span className="font-semibold text-foreground"> nombre</span> es lo único obligatorio; también podés sumar
-            telefono, tipo, pago, categoria, posicion, dia y hora.
+            Descargá la plantilla .xlsx: viene con tus alumnos para editarlos y con desplegables en tipo, pago, categoría, posición, día y hora. Subila tal cual; también podés subir un CSV o pegar las filas desde Excel o Sheets. La columna
+            <span className="font-semibold text-foreground"> id</span> no se toca: identifica al alumno para actualizarlo. Para sumar uno nuevo, agregá una fila con el id vacío; si borrás una fila, el alumno no se elimina.
           </p>
         </section>
 
@@ -151,7 +169,9 @@ function Importar() {
             <div className="flex items-baseline justify-between px-1">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Previsualización</span>
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {ready.length} {ready.length === 1 ? "listo" : "listos"} · {broken} con problemas
+                {updates > 0
+                  ? `${created} ${created === 1 ? "nuevo" : "nuevos"} · ${updates} para actualizar · ${broken} con problemas`
+                  : `${ready.length} ${ready.length === 1 ? "listo" : "listos"} · ${broken} con problemas`}
               </span>
             </div>
             <ul className="space-y-2">
@@ -162,6 +182,11 @@ function Importar() {
                     <div className="flex items-baseline gap-2">
                       <span className="shrink-0 text-[11px] font-semibold tabular-nums text-muted-foreground">L{row.line}</span>
                       <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground">{row.name || "—"}</span>
+                      {row.id && (
+                        <span className="shrink-0 rounded-full bg-court/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-court">
+                          Actualiza
+                        </span>
+                      )}
                       <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         {row.phone ?? "Sin teléfono"}
                       </span>
@@ -173,7 +198,7 @@ function Importar() {
               })}
             </ul>
             <Button disabled={busy || ready.length === 0} onClick={run} className="h-12 w-full">
-              Importar {ready.length} {ready.length === 1 ? "alumno" : "alumnos"}
+              {updates > 0 ? "Guardar" : "Importar"} {ready.length} {ready.length === 1 ? "alumno" : "alumnos"}
             </Button>
           </>
         )}

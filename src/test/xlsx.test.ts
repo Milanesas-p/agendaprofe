@@ -7,6 +7,8 @@ import {
   readStudentsWorkbook,
   rowsToTsv,
   unzip,
+  weekdayLabel,
+  WEEKDAY_OPTIONS,
   zip,
 } from "@/lib/xlsx";
 
@@ -111,6 +113,38 @@ describe("students workbook", () => {
       recurringTime: "14:00",
       error: null,
     });
+  });
+
+  it("keeps the student id in the last column", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const bytes = await buildStudentsWorkbook({
+      slots: SLOTS,
+      rows: [["Maxi Salas", "2302666351", "fijo", "mensual", "8va", "Revés", "lunes", "14:00", id]],
+    });
+    const rows = await readStudentsWorkbook(bytes);
+
+    expect(rows[0]?.at(-1)).toBe("id");
+    expect(rows[1]?.at(-1)).toBe(id);
+  });
+});
+
+describe("weekday labels", () => {
+  it("offers Monday first, lowercase and accented, like the sheet", () => {
+    expect(WEEKDAY_OPTIONS).toEqual([
+      "lunes",
+      "martes",
+      "miércoles",
+      "jueves",
+      "viernes",
+      "sábado",
+      "domingo",
+    ]);
+  });
+
+  it("turns the stored weekday number into the sheet label", () => {
+    expect(weekdayLabel(0)).toBe("domingo");
+    expect(weekdayLabel(3)).toBe("miércoles");
+    expect(weekdayLabel(9)).toBe("");
   });
 });
 
