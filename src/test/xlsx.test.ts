@@ -158,6 +158,18 @@ describe("workbook bytes", () => {
     expect(isXlsxBytes(new Uint8Array([]))).toBe(false);
   });
 
+  it("records the original size in the zip headers, not the compressed one", async () => {
+    const data = encoder.encode("hola mundo ".repeat(200));
+    const bytes = await zip([{ name: "a.txt", data }], "deflate");
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+    expect(view.getUint32(18, true)).toBeLessThan(data.length);
+    expect(view.getUint32(22, true)).toBe(data.length);
+    const centralStart = view.getUint32(bytes.length - 22 + 16, true);
+    expect(view.getUint32(centralStart + 20, true)).toBe(view.getUint32(18, true));
+    expect(view.getUint32(centralStart + 24, true)).toBe(data.length);
+  });
+
   it("turns rows into tab separated text the parser understands", () => {
     expect(
       rowsToTsv([

@@ -277,10 +277,11 @@ export async function zip(
   const deflate = mode === "deflate" && typeof CompressionStream !== "undefined";
   const prepared = await Promise.all(
     entries.map(async (entry) => {
-      const data = deflate ? await deflateRaw(entry.data) : entry.data;
+      const packed = deflate ? await deflateRaw(entry.data) : entry.data;
       return {
         name: encoder.encode(entry.name),
-        data,
+        packed,
+        size: entry.data.length,
         method: deflate ? 8 : 0,
         crc: crc32(entry.data),
       };
@@ -288,7 +289,7 @@ export async function zip(
   );
 
   const localSize = prepared.reduce(
-    (size, entry) => size + 30 + entry.name.length + entry.data.length,
+    (size, entry) => size + 30 + entry.name.length + entry.packed.length,
     0,
   );
   const centralSize = prepared.reduce((size, entry) => size + 46 + entry.name.length, 0);
@@ -306,13 +307,13 @@ export async function zip(
     view.setUint16(offset + 10, 0, true);
     view.setUint16(offset + 12, DOS_DATE, true);
     view.setUint32(offset + 14, entry.crc, true);
-    view.setUint32(offset + 18, entry.data.length, true);
-    view.setUint32(offset + 22, entry.data.length, true);
+    view.setUint32(offset + 18, entry.packed.length, true);
+    view.setUint32(offset + 22, entry.size, true);
     view.setUint16(offset + 26, entry.name.length, true);
     view.setUint16(offset + 28, 0, true);
     out.set(entry.name, offset + 30);
-    out.set(entry.data, offset + 30 + entry.name.length);
-    offset += 30 + entry.name.length + entry.data.length;
+    out.set(entry.packed, offset + 30 + entry.name.length);
+    offset += 30 + entry.name.length + entry.packed.length;
   }
 
   const centralStart = offset;
@@ -325,8 +326,8 @@ export async function zip(
     view.setUint16(offset + 12, 0, true);
     view.setUint16(offset + 14, DOS_DATE, true);
     view.setUint32(offset + 16, entry.crc, true);
-    view.setUint32(offset + 20, entry.data.length, true);
-    view.setUint32(offset + 24, entry.data.length, true);
+    view.setUint32(offset + 20, entry.packed.length, true);
+    view.setUint32(offset + 24, entry.size, true);
     view.setUint16(offset + 28, entry.name.length, true);
     view.setUint16(offset + 30, 0, true);
     view.setUint16(offset + 32, 0, true);
