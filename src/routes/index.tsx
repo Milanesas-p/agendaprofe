@@ -13,6 +13,7 @@ import { profileLabel } from "@/lib/player";
 import { Tour } from "@/components/Tour";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { reminderText, whatsappLink } from "@/lib/whatsapp";
+import { suggestionReason, suggestionsFor, type Suggestion } from "@/lib/suggestions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -106,6 +107,12 @@ function Agenda() {
   };
   // Students already in the class being filled, so they are not offered twice.
   const alreadyIn = adding ? new Set(dayLessons.filter((l) => l.start === adding).map((l) => l.studentId)) : new Set<string>();
+  // Planning ahead: a rotativo who already played this weekday and time is the
+  // strongest candidate for the empty seat. Past days get no suggestions.
+  const today = iso(new Date());
+  const suggestionsOf = (slotDate: string, slotStart: string) =>
+    suggestionsFor({ date: slotDate, start: slotStart, students, lessons, todayISO: today });
+  const sheetSuggestions = adding ? suggestionsOf(day, adding) : [];
 
   return (
     <>
@@ -161,6 +168,8 @@ function Agenda() {
               const active = ls.filter((l) => l.status !== "cancelada");
               const released = ls.length - active.length;
               const expanded = open.has(t);
+              // Only a slot with room can take another student.
+              const suggestions = canAddToLesson(active.length) ? suggestionsOf(day, t) : [];
               // The released seat is worth saying out loud: a class that looks full
               // because it shows four students still has room for a replacement.
               const count = active.length === 0
@@ -195,6 +204,19 @@ function Agenda() {
                     </button>
                     {expanded && (
                       <div className="border-t border-border/60">
+                        {suggestions.length > 0 && (
+                          <div className="border-b border-border/60 bg-court/5 px-2 py-2">
+                            <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-court">Sugeridos</p>
+                            {suggestions.map((s) => (
+                              <SuggestionRow
+                                key={s.studentId}
+                                suggestion={s}
+                                busy={busy}
+                                onAdd={() => { void addLesson({ date: day, start: t, studentId: s.studentId }); }}
+                              />
+                            ))}
+                          </div>
+                        )}
                         {ls.length > 0 && (
                           <ul>
                             {ls.map((l) => (
@@ -265,6 +287,19 @@ function Agenda() {
       {adding && (
         <Sheet onClose={() => setAdding(null)} title={`Reservar ${adding}`}>
           <div className="space-y-2">
+            {sheetSuggestions.length > 0 && (
+              <div role="group" aria-label="Sugeridos" className="space-y-1 rounded-xl border border-court/30 bg-court/5 p-2">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-court">Sugeridos</p>
+                {sheetSuggestions.map((s) => (
+                  <SuggestionRow
+                    key={s.studentId}
+                    suggestion={s}
+                    busy={busy}
+                    onAdd={async () => { if (await addLesson({ date: day, start: adding, studentId: s.studentId })) setAdding(null); }}
+                  />
+                ))}
+              </div>
+            )}
             <input type="search" aria-label="Buscar alumno para reservar" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full rounded-lg border border-border bg-card px-3" />
             {students.length === 0 && <p className="text-muted-foreground">Todavía no hay alumnos.</p>}
             {students.filter(s => matchesStudent(s.name, search) && !alreadyIn.has(s.id)).map((s) => (
@@ -378,6 +413,30 @@ function DaySummary({ lessons, blocks }: { lessons: Lesson[]; blocks: string[] }
         </dl>
       </div>
     </aside>
+  );
+}
+
+/**
+ * One suggestion: who, why, and a single tap to book them. It appears both in an
+ * open block and in the booking sheet, so the markup lives in one place.
+ */
+function SuggestionRow({ suggestion, busy, onAdd }: { suggestion: Suggestion; busy: boolean; onAdd: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 px-1 py-1">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-foreground">{suggestion.name}</span>
+        <span className="block truncate text-[11px] font-medium text-muted-foreground">{suggestionReason(suggestion)}</span>
+      </span>
+      <Button
+        variant="ghost"
+        disabled={busy}
+        aria-label={`Agregar sugerido: ${suggestion.name}`}
+        onClick={onAdd}
+        className="h-10 shrink-0 gap-1 px-2 text-xs font-semibold text-court hover:bg-court/10"
+      >
+        <Plus className="h-4 w-4" /> Agregar
+      </Button>
+    </div>
   );
 }
 
