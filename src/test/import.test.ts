@@ -130,12 +130,12 @@ describe("importing students from pasted text", () => {
 
   it("reads the time the way Google Sheets exports it", () => {
     const report = parseStudents(
-      "nombre,dia,hora\nA,lunes,14:00:00\nB,martes,2:00 PM\nC,miercoles,2:00 p. m.\nD,jueves,12:30 a. m.\n",
-      { allowedSlots: ["14:00", "00:30"] },
+      "nombre,dia,hora\nA,lunes,14:00:00\nB,martes,2:00 PM\nC,miercoles,2:00 p. m.\nD,jueves,12:30 a. m.\nE,viernes,14h30\n",
+      { allowedSlots: ["14:00", "00:30", "14:30"] },
     );
 
-    expect(report.rows.map((r) => r.error)).toEqual([null, null, null, null]);
-    expect(report.rows.map((r) => r.slots[0]?.time)).toEqual(["14:00", "14:00", "14:00", "00:30"]);
+    expect(report.rows.map((r) => r.error)).toEqual([null, null, null, null, null]);
+    expect(report.rows.map((r) => r.slots[0]?.time)).toEqual(["14:00", "14:00", "14:00", "00:30", "14:30"]);
   });
 
   it("rejects a twelve-hour time that does not exist", () => {

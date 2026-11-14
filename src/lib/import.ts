@@ -170,6 +170,13 @@ function timeOf(value: string): string | null {
     return `${pad(hour)}:${pad(minute)}`;
   }
 
+  // "14h30": the separator form the parser accepted before several slots existed.
+  const compact = /^(\d{1,2})h([0-5]\d)$/.exec(text);
+  if (compact) {
+    const hour = Number(compact[1]);
+    return hour > 23 ? null : `${pad(hour)}:${compact[2]}`;
+  }
+
   const twentyFourHour = /^([01]?\d|2[0-3])[:.]([0-5]\d)(?::[0-5]\d)?$/.exec(text);
   if (twentyFourHour) return `${pad(Number(twentyFourHour[1]))}:${twentyFourHour[2]}`;
 
