@@ -1,4 +1,4 @@
-import { weekStartFor, matchesStudent, weeklySlotLabel } from "@/lib/agenda";
+import { weekStartFor, matchesStudent, slotsLabel } from "@/lib/agenda";
 import { Sheet } from "@/components/Sheet";
 import { Button } from "@/components/ui/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -48,7 +48,7 @@ const statusDot: Record<Lesson["status"], string> = {
 };
 
 /** Everything the teacher may want to know before acting on a student. */
-const studentDetail = (s: Student) => [profileLabel(s), weeklySlotLabel(s)].filter(Boolean).join(" · ");
+const studentDetail = (s: Student) => [profileLabel(s), slotsLabel(s.slots)].filter(Boolean).join(" · ");
 
 /** How many different time slots of a day hold at least one active student. */
 const usedSlots = (lessons: Lesson[]) =>

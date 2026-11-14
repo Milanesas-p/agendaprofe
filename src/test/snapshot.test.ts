@@ -33,19 +33,25 @@ const row = {
   phone: "5492302666351",
   category: "3ra",
   court_side: "reves",
-  recurring_weekday: 5,
-  recurring_time: "14:00",
   balance: 4,
 };
 
-beforeEach(() => {
+const slot = { student_id: "student-1", weekday: 5, start_time: "14:00" };
+
+/** students, student_slots, lessons, court_settings — in that order. */
+const mockSnapshot = (students: unknown[], slots: unknown[], lessons: unknown[] = []) => {
   execute.mockReset();
+  execute
+    .mockResolvedValueOnce([students, []])
+    .mockResolvedValueOnce([slots, []])
+    .mockResolvedValueOnce([lessons, []])
+    .mockResolvedValueOnce([[], []]);
+};
+
+beforeEach(() => {
   findSessionUser.mockReset();
   findSessionUser.mockResolvedValue({ id: "owner-1", email: "profe@padel.com" });
-  execute
-    .mockResolvedValueOnce([[row], []])
-    .mockResolvedValueOnce([[], []])
-    .mockResolvedValueOnce([[], []]);
+  mockSnapshot([row], [slot]);
 });
 
 describe("getSnapshot mapping", () => {
@@ -60,8 +66,7 @@ describe("getSnapshot mapping", () => {
       phone: "5492302666351",
       category: "3ra",
       courtSide: "reves",
-      recurringWeekday: 5,
-      recurringTime: "14:00",
+      slots: [{ weekday: 5, time: "14:00" }],
       balance: 4,
     });
   });
@@ -69,7 +74,7 @@ describe("getSnapshot mapping", () => {
   it("asks for a bounded window of lessons instead of every row ever saved", async () => {
     await getSnapshot._handler();
 
-    const [sql, params] = execute.mock.calls[1] as [string, unknown[]];
+    const [sql, params] = execute.mock.calls[2] as [string, unknown[]];
     expect(sql).toContain(
       "BETWEEN DATE_SUB(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)",
     );
@@ -77,19 +82,14 @@ describe("getSnapshot mapping", () => {
   });
 
   it("turns missing optional columns into null instead of undefined", async () => {
-    execute.mockReset();
-    execute
-      .mockResolvedValueOnce([[{ ...row, category: null, court_side: null, recurring_weekday: null, recurring_time: null }], []])
-      .mockResolvedValueOnce([[], []])
-      .mockResolvedValueOnce([[], []]);
+    mockSnapshot([{ ...row, category: null, court_side: null }], []);
 
     const snapshot = await getSnapshot._handler();
 
     expect(snapshot.students[0]).toMatchObject({
       category: null,
       courtSide: null,
-      recurringWeekday: null,
-      recurringTime: null,
+      slots: [],
     });
   });
 });

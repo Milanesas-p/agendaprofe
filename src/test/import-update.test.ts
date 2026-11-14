@@ -62,8 +62,7 @@ const student = (overrides: Record<string, unknown> = {}) => ({
   phone: "2302666351",
   category: null,
   courtSide: null,
-  recurringWeekday: 1,
-  recurringTime: "14:00",
+  slots: [{ weekday: 1, time: "14:00" }],
   ...overrides,
 });
 
@@ -73,7 +72,9 @@ beforeEach(() => {
   connectionExecute.mockReset();
   findSessionUser.mockReset();
   findSessionUser.mockResolvedValue({ id: "owner-1", email: "profe@padel.com" });
-  connectionExecute.mockResolvedValue([{ affectedRows: 1 }, []]);
+  connectionExecute.mockImplementation(async (sql: string) =>
+    String(sql).trim().startsWith("SELECT") ? [[], []] : [{ affectedRows: 1 }, []],
+  );
 });
 
 describe("importing with existing students", () => {

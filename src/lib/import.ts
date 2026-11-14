@@ -10,6 +10,7 @@
 import { CATEGORIES, COURT_SIDES, type Category, type CourtSide } from "@/lib/player";
 import { normalizePhone } from "@/lib/phone";
 import { payOf, type PayMode } from "@/lib/pay";
+import type { StudentSlot } from "@/lib/recurrence";
 import { fold } from "@/lib/text";
 
 export type ImportRow = {
@@ -24,8 +25,8 @@ export type ImportRow = {
   pay: PayMode | null;
   category: Category | null;
   courtSide: CourtSide | null;
-  recurringWeekday: number | null;
-  recurringTime: string | null;
+  /** Weekly slots read from the sheet; a `fijo` gets them booked, a `rotativo` not. */
+  slots: StudentSlot[];
   /** Why this row cannot be imported, or null when it is ready. */
   error: string | null;
 };
@@ -110,42 +111,146 @@ function delimiterOf(line: string): string {
   return semicolons > commas ? ";" : ",";
 }
 
-function weekdayOf(value: string): number | null {
-  const folded = fold(value);
-  if (/^[0-6]$/.test(folded)) return Number(folded);
+/** A weekday from a day name, its first three letters, or a 0-6 digit in `dia`. */
+function dayOf(token: string, allowDigits: boolean): number | null {
+  const folded = fold(token);
+  if (allowDigits && /^[0-6]$/.test(folded)) return Number(folded);
   const exact = WEEKDAY_NAMES.indexOf(folded);
   if (exact >= 0) return exact;
-  const prefix = WEEKDAY_NAMES.findIndex((day) => day.slice(0, 3) === folded.slice(0, 3) && folded.length >= 3);
-  return prefix >= 0 ? prefix : null;
+  if (folded.length >= 3) {
+    const prefix = WEEKDAY_NAMES.findIndex((day) => day.slice(0, 3) === folded.slice(0, 3));
+    if (prefix >= 0) return prefix;
+  }
+  return null;
 }
 
+/** Every day the `dia` cell names: "Martes y viernes", "lun/mie", "3". */
+function daysOf(value: string): number[] | null {
+  const tokens = fold(value).split(/[\s,;/\-–—]+/).filter(Boolean);
+  const days: number[] = [];
+  for (const token of tokens) {
+    if (token === "y" || token === "e") continue;
+    const day = dayOf(token, true);
+    if (day === null) return null;
+    if (!days.includes(day)) days.push(day);
+  }
+  return days;
+}
+
+const pad = (value: number): string => String(value).padStart(2, "0");
+
 /**
- * `14:00`, `14:00:00`, `2:00 PM` or `2:00 p. m.` → `HH:MM`; anything else → null.
- * Google Sheets turns a typed time into a value and exports it with seconds or
- * with a twelve-hour meridiem, so both shapes have to survive the round trip.
+ * One time token → `HH:MM`. Accepts the shapes the teacher really types:
+ * `14:00`, `2:00 PM`, `8AM`, `9am`, `15hs`, `8 hs` and a bare `16`.
  */
 function timeOf(value: string): string | null {
-  const text = fold(value);
+  const text = fold(value).replace(/\s+/g, " ").trim();
 
   // A spreadsheet may store a time as the fraction of a day it already is.
   const fraction = /^(?:0)?\.(\d+)$/.exec(text);
   if (fraction) {
     const minutes = Math.round(Number(`0.${fraction[1]}`) * 24 * 60) % (24 * 60);
-    return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+    return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
   }
 
-  const twelveHour = /^(\d{1,2})[:.h](\d{2})(?::\d{2})?\s*([ap])\.?\s*m?\.?$/.exec(text);
+  const twelveHour = /^(\d{1,2})(?:[:.](\d{2}))?\s*([ap])\.?\s*m?\.?$/.exec(text);
   if (twelveHour) {
     const hour = Number(twelveHour[1]);
-    const minute = Number(twelveHour[2]);
+    const minute = Number(twelveHour[2] ?? 0);
     if (hour < 1 || hour > 12 || minute > 59) return null;
     const twentyFour = (hour % 12) + (twelveHour[3] === "p" ? 12 : 0);
-    return `${String(twentyFour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    return `${pad(twentyFour)}:${pad(minute)}`;
   }
 
-  const twentyFourHour = /^([01]?\d|2[0-3])[:.h]([0-5]\d)(?::[0-5]\d)?$/.exec(text);
-  if (!twentyFourHour) return null;
-  return `${twentyFourHour[1]!.padStart(2, "0")}:${twentyFourHour[2]}`;
+  const hours = /^(\d{1,2})(?:[:.](\d{2}))?\s*(?:hs?|h)$/.exec(text);
+  if (hours) {
+    const hour = Number(hours[1]);
+    const minute = Number(hours[2] ?? 0);
+    if (hour > 23 || minute > 59) return null;
+    return `${pad(hour)}:${pad(minute)}`;
+  }
+
+  const twentyFourHour = /^([01]?\d|2[0-3])[:.]([0-5]\d)(?::[0-5]\d)?$/.exec(text);
+  if (twentyFourHour) return `${pad(Number(twentyFourHour[1]))}:${twentyFourHour[2]}`;
+
+  const bare = /^(\d{1,2})$/.exec(text);
+  if (bare) {
+    const hour = Number(bare[1]);
+    return hour > 23 ? null : `${pad(hour)}:00`;
+  }
+  return null;
+}
+
+type HourPart = { day: number | null; time: string };
+
+/**
+ * Reads the `hora` cell. It may carry one time, or one per day:
+ * "martes 11hs - sab 12hs", "Mier-16hs Vier 14hs". Each time takes the day word
+ * that precedes it; a day word with no time after it is ambiguous and fails.
+ */
+function hourPartsOf(value: string): HourPart[] | null {
+  // "2:00 PM" and "8 hs" are one time, but split into two tokens by a plain
+  // whitespace pass; glue the meridiem and the "hs" onto their number first.
+  const text = fold(value)
+    .replace(/(\d)\s+([ap])\.?\s*m?\.?/g, "$1$2")
+    .replace(/(\d)\s+(hs?)/g, "$1$2");
+  const tokens = text.split(/[\s,;/\-–—]+/).filter(Boolean);
+  const parts: HourPart[] = [];
+  let currentDay: number | null = null;
+  for (const token of tokens) {
+    if (token === "y" || token === "e") continue;
+    const day = dayOf(token, false);
+    if (day !== null) {
+      currentDay = day;
+      continue;
+    }
+    const time = timeOf(token);
+    if (time === null) return null;
+    parts.push({ day: currentDay, time });
+    currentDay = null;
+  }
+  return currentDay === null ? parts : null;
+}
+
+/**
+ * `dia` + `hora` → the weekly slots of one row. One day with one time is the
+ * common case; several days share a time, or each day carries its own.
+ */
+function slotsFromCells(dia: string, hora: string): { slots: StudentSlot[]; error: string | null } {
+  const days = daysOf(dia);
+  if (days === null) return { slots: [], error: `Día inválido: ${dia}.` };
+  const parts = hourPartsOf(hora);
+  if (parts === null) return { slots: [], error: `Hora inválida: ${hora}. Usá 8AM, 15hs o HH:MM.` };
+
+  if (days.length === 0 && parts.length === 0) return { slots: [], error: null };
+  if (days.length === 0 || parts.length === 0) return { slots: [], error: "El horario fijo necesita día y hora." };
+
+  const explicit = parts.filter((part) => part.day !== null).length;
+  let pairs: Array<{ day: number; time: string }>;
+  if (explicit === parts.length) {
+    pairs = parts.map((part) => ({ day: part.day!, time: part.time }));
+  } else if (explicit === 0) {
+    if (parts.length === 1) pairs = days.map((day) => ({ day, time: parts[0]!.time }));
+    else if (parts.length === days.length) pairs = days.map((day, index) => ({ day, time: parts[index]!.time }));
+    else return { slots: [], error: "No coinciden los días con las horas." };
+  } else {
+    return { slots: [], error: "No coinciden los días con las horas." };
+  }
+
+  const declared = new Set(days);
+  for (const pair of pairs) {
+    if (!declared.has(pair.day)) return { slots: [], error: "Los días de la hora no coinciden con la columna día." };
+  }
+
+  const seen = new Set<string>();
+  const slots: StudentSlot[] = [];
+  for (const pair of pairs) {
+    const key = `${pair.day}#${pair.time}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    slots.push({ weekday: pair.day, time: pair.time });
+  }
+  return { slots, error: null };
 }
 
 function categoryOf(value: string): Category | null {
@@ -159,7 +264,7 @@ function courtSideOf(value: string): CourtSide | null {
   if (byToken) return byToken;
   if (folded === "reves") return "reves";
   if (folded === "drive") return "drive";
-  if (folded === "indistinto") return "indistinto";
+  if (folded === "indistinto" || folded === "comodin") return "indistinto";
   return null;
 }
 
@@ -188,8 +293,7 @@ function readRow(line: number, cells: Cells, allowedSlots: readonly string[]): I
     pay: null,
     category: null,
     courtSide: null,
-    recurringWeekday: null,
-    recurringTime: null,
+    slots: [],
     error: null,
   };
   const fail = (message: string): ImportRow => ({ ...row, error: message });
@@ -227,28 +331,22 @@ function readRow(line: number, cells: Cells, allowedSlots: readonly string[]): I
     row.pay = pay;
   }
 
-  if ((raw.dia === "") !== (raw.hora === "")) return fail("El horario fijo necesita día y hora.");
-
-  if (raw.dia !== "" && raw.hora !== "") {
-    const weekday = weekdayOf(raw.dia);
-    if (weekday === null) return fail(`Día inválido: ${raw.dia}.`);
-    const time = timeOf(raw.hora);
-    if (!time) return fail(`Hora inválida: ${raw.hora}. Usá HH:MM.`);
-    if (allowedSlots.length > 0 && !allowedSlots.includes(time)) {
-      return fail(`El horario ${time} no está entre tus bloques.`);
+  const schedule = slotsFromCells(raw.dia, raw.hora);
+  if (schedule.error) return fail(schedule.error);
+  for (const slot of schedule.slots) {
+    if (allowedSlots.length > 0 && !allowedSlots.includes(slot.time)) {
+      return fail(`El horario ${slot.time} no está entre tus bloques.`);
     }
-    row.recurringWeekday = weekday;
-    row.recurringTime = time;
   }
+  row.slots = schedule.slots;
 
   if (raw.tipo !== "") {
     const type = fold(raw.tipo);
     if (type !== "fijo" && type !== "rotativo") return fail(`Tipo inválido: ${raw.tipo}. Usá fijo o rotativo.`);
     row.type = type;
-  } else {
-    // A weekly slot is what makes a student "fijo" in this app.
-    row.type = row.recurringWeekday !== null ? "fijo" : "rotativo";
   }
+  // No `tipo` means the student is not fixed, even when the sheet names a usual day
+  // and time: those slots stay habitual and are never booked automatically.
 
   return row;
 }

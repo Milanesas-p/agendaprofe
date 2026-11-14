@@ -49,8 +49,7 @@ const student = (over: Record<string, unknown> = {}) => ({
   phone: null,
   category: null,
   courtSide: null,
-  recurringWeekday: null,
-  recurringTime: null,
+  slots: [],
   balance: 0,
   ...over,
 });
@@ -69,7 +68,7 @@ afterEach(cleanup);
 
 describe("student list", () => {
   it("shows the weekly slot on the student line", () => {
-    store.students = [student({ recurringWeekday: 5, recurringTime: "14:00" })];
+    store.students = [student({ slots: [{ weekday: 5, time: "14:00" }] })];
     renderPage();
 
     expect(screen.getByText(/Viernes 14:00/)).toBeTruthy();

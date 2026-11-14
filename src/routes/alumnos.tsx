@@ -4,8 +4,9 @@ import { useState } from "react";
 import { Plus, Minus, UserPlus, Search, Pencil, Upload } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Sheet } from "@/components/Sheet";
-import { matchesStudent, weeklySlotLabel, WEEKDAYS } from "@/lib/agenda";
+import { matchesStudent, slotsLabel, WEEKDAYS } from "@/lib/agenda";
 import { useStore, slots, iso, PAY_MODES, type Student, type Category, type CourtSide } from "@/lib/store";
+import type { StudentSlot } from "@/lib/recurrence";
 import { CATEGORIES, COURT_SIDES, courtSideLabel } from "@/lib/player";
 import { canAddToLesson } from "@/lib/rules";
 import { payLabel } from "@/lib/pay";
@@ -72,7 +73,7 @@ function Alumnos() {
                 <Button variant="ghost" aria-label={`Editar ${s.name}`} onClick={() => setEditing(s)} className="h-auto max-w-full justify-start p-0 text-lg font-semibold text-foreground hover:bg-transparent">
                   <span className="truncate">{s.name}</span><Pencil className="shrink-0 text-muted-foreground" />
                 </Button>
-                <p className="mt-1 text-sm text-muted-foreground">{[s.type, s.category, s.courtSide ? courtSideLabel(s.courtSide) : null, weeklySlotLabel(s)].filter(Boolean).join(" · ")}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{[s.type, s.category, s.courtSide ? courtSideLabel(s.courtSide) : null, slotsLabel(s.slots)].filter(Boolean).join(" · ")}</p>
               </div>
               <span aria-hidden className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full lg:hidden ${s.balance > 0 ? "bg-court" : s.balance < 0 ? "bg-destructive" : "bg-border"}`} />
             </div>
@@ -100,7 +101,7 @@ const balancePhrase = (balance: number): string => {
 
 function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean }) {
   const { settings, lessons, addLesson } = useStore();
-  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: null, phone: null, category: null, courtSide: null, recurringWeekday: null, recurringTime: null, balance: 0 });
+  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: null, phone: null, category: null, courtSide: null, slots: [], balance: 0 });
   const [booking, setBooking] = useState(false);
   const [date, setDate] = useState(() => iso(new Date()));
   const [start, setStart] = useState("");
@@ -110,6 +111,10 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
   // from the agenda. Deriving it (instead of clearing the switch on change) means
   // a date and time chosen before switching the type can never be booked.
   const bookAlso = booking && f.type === "fijo";
+  const updateSlot = (index: number, patch: Partial<StudentSlot>) =>
+    setF({ ...f, slots: f.slots.map((slot, i) => (i === index ? { ...slot, ...patch } : slot)) });
+  const addSlot = () => setF({ ...f, slots: [...f.slots, { weekday: 1, time: "" }] });
+  const removeSlot = (index: number) => setF({ ...f, slots: f.slots.filter((_, i) => i !== index) });
   // A slot is offered while it still has room for one more student.
   const available = slots(settings).filter((t) => {
     const active = lessons.filter((l) => l.date === date && l.start === t && l.status !== "cancelada").length;
@@ -119,7 +124,7 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
     if (submitting || busy) return;
     setSubmitting(true);
     try {
-      const id = savedId ?? await onSave({ ...f, name: f.name.trim(), balance: Math.trunc(f.balance) });
+      const id = savedId ?? await onSave({ ...f, name: f.name.trim(), slots: f.slots.filter((slot) => slot.time !== ""), balance: Math.trunc(f.balance) });
       if (!id) return;
       setSavedId(id);
       if (bookAlso && !await addLesson({ date, start, studentId: id })) return;
@@ -169,33 +174,39 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
           <input type="number" value={f.balance} onChange={(e) => setF({ ...f, balance: Number(e.target.value) || 0 })} className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]" />
         </label>}
         <div className="space-y-2 border-t border-border pt-4">
-          <p className="text-sm font-semibold">Horario fijo (semanal)</p>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block text-sm font-semibold">Día
-              <select
-                aria-label="Día del horario fijo"
-                value={f.recurringWeekday ?? ""}
-                onChange={(e) => setF({ ...f, recurringWeekday: e.target.value === "" ? null : Number(e.target.value), recurringTime: e.target.value === "" ? null : f.recurringTime })}
-                className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]"
-              >
-                <option value="">Sin horario fijo</option>
-                {WEEKDAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}
-              </select>
-            </label>
-            <label className="block text-sm font-semibold">Hora
-              <select
-                aria-label="Hora del horario fijo"
-                value={f.recurringTime ?? ""}
-                disabled={f.recurringWeekday === null}
-                onChange={(e) => setF({ ...f, recurringTime: e.target.value === "" ? null : e.target.value })}
-                className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px] disabled:opacity-50"
-              >
-                <option value="">Elegir hora</option>
-                {slots(settings).map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </label>
-          </div>
-          <p className="text-xs text-muted-foreground">Se agenda solo las próximas 4 semanas. Mover una clase puntual no cambia el horario.</p>
+          <p className="text-sm font-semibold">Horarios semanales</p>
+          {f.slots.map((slot, index) => (
+            <div key={index} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+              <label className="block text-sm font-semibold">Día
+                <select
+                  aria-label={`Día del horario ${index + 1}`}
+                  value={slot.weekday}
+                  onChange={(e) => updateSlot(index, { weekday: Number(e.target.value) })}
+                  className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]"
+                >
+                  {WEEKDAYS.map((day, value) => <option key={day} value={value}>{day}</option>)}
+                </select>
+              </label>
+              <label className="block text-sm font-semibold">Hora
+                <select
+                  aria-label={`Hora del horario ${index + 1}`}
+                  value={slot.time}
+                  onChange={(e) => updateSlot(index, { time: e.target.value })}
+                  className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]"
+                >
+                  <option value="">Elegir hora</option>
+                  {slots(settings).map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <Button variant="ghost" aria-label={`Quitar horario ${index + 1}`} onClick={() => removeSlot(index)} className="h-12 w-12 text-lg text-muted-foreground">×</Button>
+            </div>
+          ))}
+          <Button variant="outline" onClick={addSlot} className="h-11 w-full">Agregar horario</Button>
+          <p className="text-xs text-muted-foreground">
+            {f.type === "fijo"
+              ? "Se agenda solo cada horario, hasta 4 semanas adelante. Mover una clase puntual no cambia el horario."
+              : "Quedan como horario habitual: no se agendan solos, la agenda los sugiere."}
+          </p>
         </div>
         </fieldset>
         {f.type === "fijo" && <div className="flex items-center justify-between gap-3 border-t border-border pt-4"><label htmlFor="student-booking" className="text-sm font-semibold">Agregar clase a la agenda</label><Switch id="student-booking" checked={booking} disabled={submitting || busy} onCheckedChange={setBooking} /></div>}
@@ -205,7 +216,7 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
           {available.length === 0 && <p role="status" className="text-sm text-destructive">No hay horarios libres para este día.</p>}
         </div>}
         {savedId && <p role="status" className="text-sm text-muted-foreground">Alumno guardado. Falta confirmar la reserva.</p>}
-        <Button variant="ghost" disabled={submitting || busy || !f.name.trim() || (f.recurringWeekday !== null && f.recurringTime === null) || (bookAlso && (!date || !available.includes(start)))} onClick={save} className="h-12 w-full text-[15px] disabled:opacity-40">{submitting || busy ? "Guardando…" : bookAlso ? "Guardar y reservar" : "Guardar"}</Button>
+        <Button variant="ghost" disabled={submitting || busy || !f.name.trim() || f.slots.some((slot) => slot.time === "") || (bookAlso && (!date || !available.includes(start)))} onClick={save} className="h-12 w-full text-[15px] disabled:opacity-40">{submitting || busy ? "Guardando…" : bookAlso ? "Guardar y reservar" : "Guardar"}</Button>
       </div>
     </Sheet>
   );

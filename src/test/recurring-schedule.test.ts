@@ -45,9 +45,9 @@ const data = (await import("@/server/data")) as unknown as {
 type Series = {
   id: string;
   name: string;
-  recurring_weekday: number;
-  recurring_time: string;
-  recurring_last_date: string | null;
+  weekday: number;
+  start_time: string;
+  last_generated: string | null;
 };
 
 let series: Series[] = [];
@@ -62,7 +62,7 @@ const lastDateUpdates: unknown[][] = [];
 function wireDatabase() {
   execute.mockImplementation(async (sql: string) => {
     if (sql.startsWith("SELECT start_hour")) return [[], []];
-    if (sql.startsWith("SELECT id, name, recurring_weekday")) return [series, []];
+    if (sql.includes("FROM student_slots")) return [series, []];
     return [[], []];
   });
 
@@ -74,7 +74,7 @@ function wireDatabase() {
     }
     if (sql.startsWith("SELECT COUNT(*)")) return [[{ n: activeInSlot }], []];
     if (sql.startsWith("INSERT INTO lessons")) { inserts.push(params); return [{ affectedRows: 1 }, []]; }
-    if (sql.startsWith("UPDATE students SET recurring_last_date")) { lastDateUpdates.push(params); return [{ affectedRows: 1 }, []]; }
+    if (sql.startsWith("UPDATE student_slots SET last_generated")) { lastDateUpdates.push(params); return [{ affectedRows: 1 }, []]; }
     if (sql.startsWith("SELECT lesson_date, start_time, student_id, status")) return [lessonRow ? [lessonRow] : [], []];
     if (sql.startsWith("UPDATE lessons SET lesson_date")) return [{ affectedRows: 1 }, []];
     return [[], []];
@@ -100,7 +100,7 @@ beforeEach(() => {
 
 describe("materializeRecurring", () => {
   const friday = (lastDate: string | null = null): Series => ({
-    id: "s1", name: "Ana", recurring_weekday: 5, recurring_time: "14:00", recurring_last_date: lastDate,
+    id: "s1", name: "Ana", weekday: 5, start_time: "14:00", last_generated: lastDate,
   });
 
   it("books every Friday of the next four weeks", async () => {
@@ -151,6 +151,13 @@ describe("materializeRecurring", () => {
 
     expect(result).toEqual({ created: 0, conflicts: [] });
     expect(inserts).toHaveLength(0);
+  });
+
+  it("only books the slots of fixed students", async () => {
+    await data.materializeRecurring._handler({ data: {} });
+
+    const [sql] = execute.mock.calls.find(([text]) => String(text).includes("FROM student_slots")) ?? [];
+    expect(String(sql)).toContain("s.type = 'fijo'");
   });
 });
 

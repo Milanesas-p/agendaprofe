@@ -11,6 +11,7 @@
 
 import { TEMPLATE_COLUMNS, type TemplateColumn } from "@/lib/import";
 import { WEEKDAYS } from "@/lib/agenda";
+import type { StudentSlot } from "@/lib/recurrence";
 import { CATEGORIES, COURT_SIDES, courtSideLabel } from "@/lib/player";
 import { PAY_MODES, payLabel } from "@/lib/pay";
 
@@ -43,6 +44,23 @@ export const WEEKDAY_OPTIONS: string[] = [1, 2, 3, 4, 5, 6, 0].map((day) =>
 /** Stored weekday number (0 = Sunday) → the label the sheet carries. */
 export function weekdayLabel(day: number): string {
   return WEEKDAYS[day]?.toLowerCase() ?? "";
+}
+
+/**
+ * The `dia`/`hora` cells for a student with any number of weekly slots, using the
+ * teacher's own notation: "Martes y viernes" plus either one time or one per day
+ * ("martes 11hs - sab 12hs"), so a downloaded sheet imports back unchanged.
+ */
+export function scheduleCells(slots: readonly StudentSlot[]): { dia: string; hora: string } {
+  if (slots.length === 0) return { dia: "", hora: "" };
+
+  const ordered = [...slots].sort((a, b) => a.weekday - b.weekday || a.time.localeCompare(b.time));
+  const days = [...new Set(ordered.map((slot) => slot.weekday))].map((day) => weekdayLabel(day));
+  const times = new Set(ordered.map((slot) => slot.time));
+  const hora = times.size === 1
+    ? ordered[0]!.time
+    : ordered.map((slot) => `${weekdayLabel(slot.weekday)} ${slot.time}`).join(" - ");
+  return { dia: days.join(" y "), hora };
 }
 
 /** Widths for the template columns, in the same order. */
@@ -439,10 +457,20 @@ function sharedStrings(document: Document): string[] {
   return Array.from(document.getElementsByTagName("si")).map((item) => nodeText(item));
 }
 
+/**
+ * A numeric cell written in exponent form becomes plain digits. Excel saves a phone
+ * typed as a number as `3.544612527E9`, which no phone validator accepts.
+ */
+export function cellText(raw: string): string {
+  if (!/^-?\d+(?:\.\d+)?e[+-]?\d+$/i.test(raw)) return raw;
+  const value = Number(raw);
+  return Number.isFinite(value) ? String(value) : raw;
+}
+
 function cellValue(cell: Element, shared: readonly string[]): string {
   if (cell.getAttribute("t") === "inlineStr") return nodeText(cell);
   const raw = cell.getElementsByTagName("v")[0]?.textContent ?? "";
-  if (cell.getAttribute("t") !== "s") return raw;
+  if (cell.getAttribute("t") !== "s") return cellText(raw);
   const index = Number(raw);
   return Number.isInteger(index) ? (shared[index] ?? "") : "";
 }

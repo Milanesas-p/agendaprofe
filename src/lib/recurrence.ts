@@ -14,6 +14,9 @@ export const HORIZON_DAYS = 28;
 /** 0 = Sunday … 6 = Saturday, matching `Date.getUTCDay()`. */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
+/** One weekly slot of a student: a weekday and a `HH:MM` start. */
+export type StudentSlot = { weekday: number; time: string };
+
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const parse = (iso: string): Date => new Date(`${iso}T00:00:00Z`);

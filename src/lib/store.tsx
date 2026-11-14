@@ -19,9 +19,10 @@ import { completeTour, getCurrentUser, loginUser, logoutUser, type AuthUser } fr
 import { balanceDelta, slots, validSettings, type ClassStatus } from "./rules";
 import type { Category, CourtSide } from "./player";
 import { PAY_MODES, type PayMode } from "./pay";
+import type { StudentSlot } from "./recurrence";
 
 export { slots, validSettings, PAY_MODES };
-export type { ClassStatus };
+export type { ClassStatus, StudentSlot };
 export type { Category, CourtSide, PayMode };
 
 export type StudentType = "fijo" | "rotativo";
@@ -35,9 +36,8 @@ export type Student = {
   /** Padel category and court side, or null when the teacher did not set them. */
   category: Category | null;
   courtSide: CourtSide | null;
-  /** Weekly fixed slot: 0 = Sunday, or null when the student has none. */
-  recurringWeekday: number | null;
-  recurringTime: string | null;
+  /** Weekly slots. A `fijo` gets them booked; a `rotativo` keeps them habitual. */
+  slots: StudentSlot[];
   balance: number;
 };
 export type ImportedStudent = {
@@ -49,8 +49,7 @@ export type ImportedStudent = {
   pay: PayMode | null;
   category: Category | null;
   courtSide: CourtSide | null;
-  recurringWeekday: number | null;
-  recurringTime: string | null;
+  slots: StudentSlot[];
 };
 export type Lesson = {
   id: string;
@@ -90,7 +89,7 @@ type Ctx = State & {
   setNotified: (id: string, notified: boolean) => Promise<boolean>;
   addLesson: (l: Omit<Lesson, "id" | "status" | "notified">) => Promise<boolean>;
   addStudent: (s: Omit<Student, "id">) => Promise<string | false>;
-  updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay" | "phone" | "category" | "courtSide" | "recurringWeekday" | "recurringTime">) => Promise<boolean>;
+  updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay" | "phone" | "category" | "courtSide" | "slots">) => Promise<boolean>;
   adjustBalance: (id: string, delta: number) => Promise<boolean>;
   moveLesson: (id: string, target: { date: string; start: string }) => Promise<boolean>;
   setSettings: (s: Settings) => Promise<boolean>;
@@ -220,8 +219,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addStudent: async (s) => {
       const result = await commit(
         async () => {
-          const id = await addStudentFn({ data: { name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, category: s.category, courtSide: s.courtSide, recurringWeekday: s.recurringWeekday, recurringTime: s.recurringTime, balance: s.balance } });
-          if (s.recurringWeekday !== null && s.recurringTime !== null) await afterScheduleChange();
+          const id = await addStudentFn({ data: { name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, category: s.category, courtSide: s.courtSide, slots: s.slots, balance: s.balance } });
+          if (s.type === "fijo" && s.slots.length > 0) await afterScheduleChange();
           return id;
         },
         "No se pudo guardar el alumno.",
@@ -230,8 +229,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     updateStudent: (id, s) =>
       changed(async () => {
-        await updateStudentFn({ data: { id, name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, category: s.category, courtSide: s.courtSide, recurringWeekday: s.recurringWeekday, recurringTime: s.recurringTime } });
-        if (s.recurringWeekday !== null && s.recurringTime !== null) await afterScheduleChange();
+        await updateStudentFn({ data: { id, name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, category: s.category, courtSide: s.courtSide, slots: s.slots } });
+        if (s.type === "fijo" && s.slots.length > 0) await afterScheduleChange();
       }, "No se pudo guardar el alumno."),
     adjustBalance: (id, delta) =>
       changed(() => adjustBalanceFn({ data: { id, delta } }), "No se pudo ajustar el saldo."),
@@ -240,7 +239,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const count = await commit(
         async () => {
           const total = await importStudentsFn({ data: { students: rows } });
-          if (rows.some((r) => r.recurringWeekday !== null)) await afterScheduleChange();
+          if (rows.some((r) => r.type === "fijo" && r.slots.length > 0)) await afterScheduleChange();
           return total;
         },
         "No se pudieron importar los alumnos.",

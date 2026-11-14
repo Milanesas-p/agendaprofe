@@ -114,10 +114,51 @@ describe("suggestions for a slot", () => {
 
 describe("suggestion reason", () => {
   it("says when the student last came", () => {
-    expect(suggestionReason({ lastAttended: "2026-11-10", attended: 1 })).toBe("Vino el 10/11");
+    expect(suggestionReason({ habitual: false, lastAttended: "2026-11-10", attended: 1 })).toBe("Vino el 10/11");
   });
 
   it("adds how many of the last four they came to", () => {
-    expect(suggestionReason({ lastAttended: "2026-11-10", attended: 2 })).toBe("Vino el 10/11 · 2 de 4");
+    expect(suggestionReason({ habitual: false, lastAttended: "2026-11-10", attended: 2 })).toBe("Vino el 10/11 · 2 de 4");
+  });
+
+  it("says the student comes at this time when the slot is habitual", () => {
+    expect(suggestionReason({ habitual: true, lastAttended: null, attended: 0 })).toBe("Viene este horario");
+  });
+});
+
+describe("habitual slots", () => {
+  const withSlots = (id: string, name: string, slots: { weekday: number; time: string }[]) => ({
+    id,
+    name,
+    type: "rotativo" as const,
+    slots,
+  });
+
+  it("suggests a rotativo whose habitual slot matches, even without history", () => {
+    const out = suggest([withSlots("s1", "Juan Gómez", [{ weekday: 2, time: "09:00" }])], []);
+
+    expect(out).toEqual([
+      { studentId: "s1", name: "Juan Gómez", habitual: true, lastAttended: null, attended: 0 },
+    ]);
+  });
+
+  it("ignores a habitual slot on another day or time", () => {
+    expect(suggest([withSlots("s1", "Juan", [{ weekday: 3, time: "09:00" }])], [])).toEqual([]);
+    expect(suggest([withSlots("s1", "Juan", [{ weekday: 2, time: "10:00" }])], [])).toEqual([]);
+  });
+
+  it("ranks a declared slot above one inferred from history", () => {
+    const out = suggest(
+      [withSlots("s1", "Historial", []), withSlots("s2", "Habitual", [{ weekday: 2, time: "09:00" }])],
+      [lesson("2026-11-10", "s1")],
+    );
+
+    expect(out.map((s) => s.name)).toEqual(["Habitual", "Historial"]);
+  });
+
+  it("still never suggests a fixed student, even with a matching slot", () => {
+    const fixed = { id: "s1", name: "Juan", type: "fijo" as const, slots: [{ weekday: 2, time: "09:00" }] };
+
+    expect(suggest([fixed], [])).toEqual([]);
   });
 });

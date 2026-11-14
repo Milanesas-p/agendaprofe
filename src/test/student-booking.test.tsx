@@ -52,6 +52,38 @@ describe("payment modes in the editor", () => {
   });
 });
 
+describe("weekly slots in the editor", () => {
+  it("adds several slots and saves them", async () => {
+    openEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "Agregar horario" }));
+    fireEvent.change(screen.getByLabelText("Día del horario 1"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Hora del horario 1"), { target: { value: "14:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Agregar horario" }));
+    fireEvent.change(screen.getByLabelText("Día del horario 2"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Hora del horario 2"), { target: { value: "09:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() =>
+      expect(store.addStudent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          slots: [
+            { weekday: 5, time: "14:00" },
+            { weekday: 2, time: "09:00" },
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("will not save while a slot still has no time", () => {
+    openEditor();
+    fireEvent.click(screen.getByRole("button", { name: "Agregar horario" }));
+
+    expect((screen.getByRole("button", { name: "Guardar" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
 describe("booking from student form", () => {
   it("saves four paid classes and books the selected date and time for that student", async () => {
     openEditor();
@@ -59,7 +91,7 @@ describe("booking from student form", () => {
     chooseLesson();
     fireEvent.click(screen.getByRole("button", { name: "Guardar y reservar" }));
     await waitFor(() => expect(store.addLesson).toHaveBeenCalledWith({ date: "2026-11-02", start: "09:00", studentId: "student-1" }));
-    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: null, phone: null, category: null, courtSide: null, recurringWeekday: null, recurringTime: null, balance: 4 });
+    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: null, phone: null, category: null, courtSide: null, slots: [], balance: 4 });
   });
   it("retries a failed booking without creating another student", async () => {
     store.addLesson.mockResolvedValueOnce(false).mockResolvedValueOnce(true);

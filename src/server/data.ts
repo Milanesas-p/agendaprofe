@@ -5,7 +5,7 @@ import { findSessionUser } from "./session-user";
 import { db } from "./db";
 import { balanceDelta, canAddToLesson, slots, validSettings, MAX_STUDENTS_PER_LESSON, type ClassStatus } from "@/lib/rules";
 import { normalizePhone } from "@/lib/phone";
-import { datesToGenerate } from "@/lib/recurrence";
+import { datesToGenerate, type StudentSlot } from "@/lib/recurrence";
 import { LESSON_WINDOW_FUTURE_DAYS, LESSON_WINDOW_PAST_DAYS } from "@/lib/lesson-window";
 import { CATEGORIES, COURT_SIDES, type Category, type CourtSide } from "@/lib/player";
 import { PAY_MODES, type PayMode } from "@/lib/pay";
@@ -18,12 +18,11 @@ export type StudentDto = {
   /** Null when the teacher did not decide the mode yet. */
   pay: PayMode | null;
   phone: string | null;
-  /** Padel category and court side, or null when the teacher did not set them. */
+  /** Player profile, or null when the teacher did not set it. */
   category: Category | null;
   courtSide: CourtSide | null;
-  /** Weekly fixed slot, or null when the student has none. 0 = Sunday. */
-  recurringWeekday: number | null;
-  recurringTime: string | null;
+  /** Weekly slots; a `fijo` gets every one booked and a `rotativo` keeps them habitual. */
+  slots: StudentSlot[];
   balance: number;
 };
 
@@ -141,22 +140,70 @@ function integer(value: unknown, field: string): number {
 }
 
 /**
- * Reads the optional weekly slot. Weekday and time go together: either both are
- * present or the student has no fixed schedule.
+ * Reads the weekly slots. A student may have several; duplicates are collapsed and
+ * the list is sorted so the sheet and the screen always read the same order.
  */
-function recurringSlot(input: Record<string, unknown>): { weekday: number | null; time: string | null } {
-  const weekday = input["recurringWeekday"];
-  const time = input["recurringTime"];
-  const noWeekday = weekday === null || weekday === undefined;
-  const noTime = time === null || time === undefined;
+function slotsOf(input: Record<string, unknown>): { slots: StudentSlot[] } {
+  const raw = input["slots"];
+  if (raw === undefined || raw === null) return { slots: [] };
+  if (!Array.isArray(raw)) throw new Error("Horarios inválidos.");
 
-  if (noWeekday && noTime) return { weekday: null, time: null };
-  if (noWeekday || noTime) throw new Error("El horario fijo necesita día y hora.");
-  if (typeof weekday !== "number" || !Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
-    throw new Error("Día de la semana inválido.");
+  const seen = new Set<string>();
+  const slots: StudentSlot[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== "object") throw new Error("Horario inválido.");
+    const slot = item as Record<string, unknown>;
+    const weekday = slot["weekday"];
+    const time = slot["time"];
+    if (typeof weekday !== "number" || !Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+      throw new Error("Día de la semana inválido.");
+    }
+    if (typeof time !== "string" || !TIME_PATTERN.test(time)) throw new Error("Horario inválido.");
+    const key = `${weekday}#${time}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    slots.push({ weekday, time });
   }
-  if (typeof time !== "string" || !TIME_PATTERN.test(time)) throw new Error("Horario inválido.");
-  return { weekday, time };
+
+  return { slots: slots.sort((a, b) => a.weekday - b.weekday || a.time.localeCompare(b.time)) };
+}
+
+/**
+ * Makes the stored slots match `slots`: existing rows stay (they carry their
+ * generation marker), removed ones go, and only missing ones are inserted.
+ */
+async function syncSlots(
+  connection: PoolConnection,
+  ownerId: string,
+  studentId: string,
+  slots: readonly StudentSlot[],
+): Promise<void> {
+  const [rows] = await connection.execute(
+    "SELECT weekday, start_time FROM student_slots WHERE owner_id = ? AND student_id = ?",
+    [ownerId, studentId],
+  );
+  const existing = new Map(
+    (rows as Array<{ weekday: number; start_time: string }>).map((row) => [
+      `${Number(row.weekday)}#${row.start_time}`,
+      row,
+    ]),
+  );
+  const wanted = new Set(slots.map((slot) => `${slot.weekday}#${slot.time}`));
+
+  for (const [key, row] of existing) {
+    if (wanted.has(key)) continue;
+    await connection.execute(
+      "DELETE FROM student_slots WHERE owner_id = ? AND student_id = ? AND weekday = ? AND start_time = ?",
+      [ownerId, studentId, Number(row.weekday), row.start_time],
+    );
+  }
+  for (const slot of slots) {
+    if (existing.has(`${slot.weekday}#${slot.time}`)) continue;
+    await connection.execute(
+      "INSERT INTO student_slots (id, owner_id, student_id, weekday, start_time) VALUES (?, ?, ?, ?, ?)",
+      [randomUUID(), ownerId, studentId, slot.weekday, slot.time],
+    );
+  }
 }
 
 /**
@@ -223,17 +270,25 @@ type RawStudentRow = {
   phone: string | null;
   category: Category | null;
   court_side: CourtSide | null;
-  recurring_weekday: number | null;
-  recurring_time: string | null;
   balance: number;
 };
 
 export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): Promise<Snapshot> => {
   const ownerId = await requireUserId();
   const [studentRows] = await db().execute(
-    "SELECT id, name, type, pay, phone, category, court_side, recurring_weekday, recurring_time, balance FROM students WHERE owner_id = ? ORDER BY name",
+    "SELECT id, name, type, pay, phone, category, court_side, balance FROM students WHERE owner_id = ? ORDER BY name",
     [ownerId],
   );
+  const [slotRows] = await db().execute(
+    "SELECT student_id, weekday, start_time FROM student_slots WHERE owner_id = ? ORDER BY weekday, start_time",
+    [ownerId],
+  );
+  const slotsByStudent = new Map<string, StudentSlot[]>();
+  for (const row of slotRows as Array<{ student_id: string; weekday: number; start_time: string }>) {
+    const list = slotsByStudent.get(row.student_id) ?? [];
+    list.push({ weekday: Number(row.weekday), time: row.start_time });
+    slotsByStudent.set(row.student_id, list);
+  }
   const [lessonRows] = await db().execute(
     `SELECT id, lesson_date, start_time, student_id, status, notified_at IS NOT NULL AS notified
       FROM lessons WHERE owner_id = ?
@@ -249,8 +304,7 @@ export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): P
     phone: s.phone ?? null,
     category: (s.category ?? null) as Category | null,
     courtSide: (s.court_side ?? null) as CourtSide | null,
-    recurringWeekday: s.recurring_weekday === null || s.recurring_weekday === undefined ? null : Number(s.recurring_weekday),
-    recurringTime: s.recurring_time ?? null,
+    slots: slotsByStudent.get(s.id) ?? [],
     balance: Number(s.balance),
   }));
   const lessons = (
@@ -282,17 +336,20 @@ export const addStudent = createServerFn({ method: "POST" })
       pay: payMode(raw["pay"]),
       phone: normalizePhone(raw["phone"]),
       ...playerProfile(raw),
-      ...recurringSlot(raw),
+      ...slotsOf(raw),
       balance: integer(raw["balance"], "clases pagadas"),
     };
   })
   .handler(async ({ data }): Promise<string> => {
     const ownerId = await requireUserId();
     const id = randomUUID();
-    await db().execute(
-      "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, recurring_weekday, recurring_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [id, ownerId, data.name, data.type, data.pay, data.phone, data.category, data.courtSide, data.weekday, data.time, data.balance],
-    );
+    await withTransaction(async (connection) => {
+      await connection.execute(
+        "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [id, ownerId, data.name, data.type, data.pay, data.phone, data.category, data.courtSide, data.balance],
+      );
+      await syncSlots(connection, ownerId, id, data.slots);
+    });
     return id;
   });
 
@@ -306,19 +363,22 @@ export const updateStudent = createServerFn({ method: "POST" })
       pay: payMode(raw["pay"]),
       phone: normalizePhone(raw["phone"]),
       ...playerProfile(raw),
-      ...recurringSlot(raw),
+      ...slotsOf(raw),
     };
   })
   .handler(async ({ data }): Promise<void> => {
     const ownerId = await requireUserId();
     // The balance is deliberately not touchable here: it only moves through
-    // attendance or an explicit +/- adjustment. Changing the weekly slot is not
+    // attendance or an explicit +/- adjustment. Changing the weekly slots is not
     // retroactive: occurrences already created stay where they are.
-    const [result] = await db().execute(
-      "UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ?, recurring_weekday = ?, recurring_time = ? WHERE id = ? AND owner_id = ?",
-      [data.name, data.type, data.pay, data.phone, data.category, data.courtSide, data.weekday, data.time, data.id, ownerId],
-    );
-    if ((result as { affectedRows: number }).affectedRows === 0) throw new Error("Ese alumno no existe.");
+    await withTransaction(async (connection) => {
+      const [result] = await connection.execute(
+        "UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ? WHERE id = ? AND owner_id = ?",
+        [data.name, data.type, data.pay, data.phone, data.category, data.courtSide, data.id, ownerId],
+      );
+      if ((result as { affectedRows: number }).affectedRows === 0) throw new Error("Ese alumno no existe.");
+      await syncSlots(connection, ownerId, data.id, data.slots);
+    });
   });
 
 export const adjustBalance = createServerFn({ method: "POST" })
@@ -439,12 +499,13 @@ export const setLessonNotified = createServerFn({ method: "POST" })
   });
 
 /**
- * Tops up every student's weekly slot up to the horizon.
+ * Tops up every fixed student's weekly slots up to the horizon.
  *
- * Idempotent and monotonic: it only looks at dates after each student's
- * `recurring_last_date`, so an occurrence the teacher already moved or cancelled
- * is never recreated. A slot that is already full stops that student's top-up and
- * is reported, never swallowed.
+ * Idempotent and monotonic: it only looks at dates after each slot's
+ * `last_generated`, so an occurrence the teacher already moved or cancelled
+ * is never recreated. Only `fijo` slots are booked; a `rotativo` keeps its slots
+ * as habitual times and is never booked automatically. A slot that is already full
+ * stops that series and is reported, never swallowed.
  */
 export const materializeRecurring = createServerFn({ method: "POST" }).handler(
   async (): Promise<MaterializeResult> => {
@@ -454,15 +515,19 @@ export const materializeRecurring = createServerFn({ method: "POST" }).handler(
     const allowed = slots(await readSettings(ownerId));
 
     const [rows] = await db().execute(
-      "SELECT id, name, recurring_weekday, recurring_time, recurring_last_date FROM students WHERE owner_id = ? AND recurring_weekday IS NOT NULL",
+      `SELECT s.id, s.name, sl.weekday, sl.start_time, sl.last_generated
+         FROM student_slots sl
+         JOIN students s ON s.id = sl.student_id AND s.owner_id = sl.owner_id
+        WHERE sl.owner_id = ? AND s.type = 'fijo'
+        ORDER BY s.name, sl.weekday, sl.start_time`,
       [ownerId],
     );
     const series = rows as Array<{
       id: string;
       name: string;
-      recurring_weekday: number;
-      recurring_time: string;
-      recurring_last_date: string | null;
+      weekday: number;
+      start_time: string;
+      last_generated: string | null;
     }>;
     if (series.length === 0) return { created: 0, conflicts: [] };
 
@@ -470,22 +535,22 @@ export const materializeRecurring = createServerFn({ method: "POST" }).handler(
     const conflicts: RecurringConflict[] = [];
 
     await withTransaction(async (connection) => {
-      for (const student of series) {
-        const weekday = Number(student.recurring_weekday);
-        const time = student.recurring_time;
+      for (const slot of series) {
+        const weekday = Number(slot.weekday);
+        const time = slot.start_time;
 
         if (!allowed.includes(time)) {
           // The blocks were reconfigured under the series; report instead of guessing.
-          conflicts.push({ studentId: student.id, studentName: student.name, date: today, time });
+          conflicts.push({ studentId: slot.id, studentName: slot.name, date: today, time });
           continue;
         }
 
         let resolved: string | null = null;
-        for (const date of datesToGenerate(weekday, student.recurring_last_date, today)) {
+        for (const date of datesToGenerate(weekday, slot.last_generated, today)) {
           // Any row means this occurrence was already handled, moved or cancelled.
           const [existing] = await connection.execute(
             "SELECT id FROM lessons WHERE owner_id = ? AND student_id = ? AND lesson_date = ? AND start_time = ?",
-            [ownerId, student.id, date, time],
+            [ownerId, slot.id, date, time],
           );
           if ((existing as unknown[]).length > 0) {
             resolved = date;
@@ -499,22 +564,22 @@ export const materializeRecurring = createServerFn({ method: "POST" }).handler(
           const active = Number((countRows as Array<{ n: number }>)[0]?.n ?? 0);
           if (!canAddToLesson(active)) {
             // Stop here so the week stays pending and the warning repeats.
-            conflicts.push({ studentId: student.id, studentName: student.name, date, time });
+            conflicts.push({ studentId: slot.id, studentName: slot.name, date, time });
             break;
           }
 
           await connection.execute(
             "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
-            [randomUUID(), ownerId, date, time, student.id],
+            [randomUUID(), ownerId, date, time, slot.id],
           );
           created += 1;
           resolved = date;
         }
 
-        if (resolved && resolved !== student.recurring_last_date) {
+        if (resolved && resolved !== slot.last_generated) {
           await connection.execute(
-            "UPDATE students SET recurring_last_date = ? WHERE id = ? AND owner_id = ?",
-            [resolved, student.id, ownerId],
+            "UPDATE student_slots SET last_generated = ? WHERE owner_id = ? AND student_id = ? AND weekday = ? AND start_time = ?",
+            [resolved, ownerId, slot.id, weekday, time],
           );
         }
       }
@@ -650,7 +715,7 @@ export const importStudents = createServerFn({ method: "POST" })
         pay: payMode(student["pay"]),
         phone: normalizePhone(student["phone"]),
         ...playerProfile(student),
-        ...recurringSlot(student),
+        ...slotsOf(student),
       };
     });
     // MySQL compares ids case-insensitively, so the duplicate check has to as well.
@@ -676,37 +741,18 @@ export const importStudents = createServerFn({ method: "POST" })
       for (const student of data.students) {
         if (student.id !== null) {
           await connection.execute(
-            `UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ?,
-               recurring_weekday = ?, recurring_time = ? WHERE id = ? AND owner_id = ?`,
-            [
-              student.name,
-              student.type,
-              student.pay,
-              student.phone,
-              student.category,
-              student.courtSide,
-              student.weekday,
-              student.time,
-              student.id,
-              ownerId,
-            ],
+            `UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ?
+             WHERE id = ? AND owner_id = ?`,
+            [student.name, student.type, student.pay, student.phone, student.category, student.courtSide, student.id, ownerId],
           );
+          await syncSlots(connection, ownerId, student.id, student.slots);
         } else {
+          const id = randomUUID();
           await connection.execute(
-            "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, recurring_weekday, recurring_time, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
-            [
-              randomUUID(),
-              ownerId,
-              student.name,
-              student.type,
-              student.pay,
-              student.phone,
-              student.category,
-              student.courtSide,
-              student.weekday,
-              student.time,
-            ],
+            "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
+            [id, ownerId, student.name, student.type, student.pay, student.phone, student.category, student.courtSide],
           );
+          await syncSlots(connection, ownerId, id, student.slots);
         }
       }
     });

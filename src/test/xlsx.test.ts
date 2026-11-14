@@ -109,8 +109,7 @@ describe("students workbook", () => {
       pay: "mensual",
       category: "8va",
       courtSide: "reves",
-      recurringWeekday: 1,
-      recurringTime: "14:00",
+      slots: [{ weekday: 1, time: "14:00" }],
       error: null,
     });
   });

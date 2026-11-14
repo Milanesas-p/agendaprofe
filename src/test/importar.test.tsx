@@ -14,8 +14,7 @@ const maxi: Student = {
   phone: "5492302666351",
   category: "8va",
   courtSide: "reves",
-  recurringWeekday: 1,
-  recurringTime: "14:00",
+  slots: [{ weekday: 1, time: "14:00" }],
   balance: 4,
 };
 
@@ -31,8 +30,7 @@ const { store, navigate } = vi.hoisted(() => ({
       phone: string | null;
       category: string | null;
       courtSide: string | null;
-      recurringWeekday: number | null;
-      recurringTime: string | null;
+      slots: Array<{ weekday: number; time: string }>;
       balance: number;
     }>,
     busy: false,
@@ -149,8 +147,7 @@ describe("import page", () => {
       pay: null,
       category: null,
       courtSide: null,
-      recurringWeekday: null,
-      recurringTime: null,
+      slots: [],
     }];
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     renderPage();
@@ -242,12 +239,11 @@ describe("import page", () => {
         id: null,
         name: "Maxi Salas",
         phone: "5492302666351",
-        type: "fijo",
+        type: "rotativo",
         pay: null,
         category: null,
         courtSide: null,
-        recurringWeekday: 1,
-        recurringTime: "14:00",
+        slots: [{ weekday: 1, time: "14:00" }],
       },
     ]);
     await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: "/alumnos" }));

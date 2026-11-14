@@ -17,14 +17,22 @@ const ATTENDANCE_SLOTS = 4;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export type SuggestableStudent = { id: string; name: string; type: "fijo" | "rotativo" };
+export type SuggestableStudent = {
+  id: string;
+  name: string;
+  type: "fijo" | "rotativo";
+  /** Habitual weekly slots; a rotativo's are never booked automatically. */
+  slots?: readonly { weekday: number; time: string }[];
+};
 export type SuggestableLesson = { date: string; start: string; studentId: string; status: ClassStatus };
 
 export type Suggestion = {
   studentId: string;
   name: string;
-  /** Last time this student attended this weekday and time, as an ISO day. */
-  lastAttended: string;
+  /** True when the student has this weekday and time as a habitual slot. */
+  habitual: boolean;
+  /** Last time they attended this slot, or null when only the habitual slot qualifies them. */
+  lastAttended: string | null;
   /** How many times they attended that slot inside the lookback window. */
   attended: number;
 };
@@ -38,9 +46,10 @@ const dayMonth = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)
 /**
  * Students worth offering for one slot `(date, start)`.
  *
- * A student qualifies when they are `rotativo`, not already in that slot, and
- * their most recent visit to that same weekday and time was a `presente` inside
- * the lookback window. Past days get nothing: suggestions are for planning ahead.
+ * A student qualifies when they are `rotativo`, not already in that slot, and either
+ * keep that weekday and time as a habitual slot or their most recent visit to it was
+ * a `presente` inside the lookback window. Past days get nothing: suggestions are for
+ * planning ahead.
  */
 export function suggestionsFor(input: {
   date: string;
@@ -81,25 +90,30 @@ export function suggestionsFor(input: {
   for (const student of students) {
     if (student.type === "fijo" || inSlot.has(student.id)) continue;
     const stat = history.get(student.id);
-    if (!stat || stat.lastStatus !== "presente" || stat.attended === 0) continue;
+    const habitual = student.slots?.some((slot) => slot.weekday === weekday && slot.time === start) ?? false;
+    const fromHistory = stat !== undefined && stat.lastStatus === "presente" && stat.attended > 0;
+    if (!habitual && !fromHistory) continue;
     out.push({
       studentId: student.id,
       name: student.name,
-      lastAttended: stat.lastAttended,
-      attended: Math.min(stat.attended, ATTENDANCE_SLOTS),
+      habitual,
+      lastAttended: stat?.lastAttended ?? null,
+      attended: stat ? Math.min(stat.attended, ATTENDANCE_SLOTS) : 0,
     });
   }
 
   return out.sort(
     (a, b) =>
+      Number(b.habitual) - Number(a.habitual) ||
       b.attended - a.attended ||
-      b.lastAttended.localeCompare(a.lastAttended) ||
+      (b.lastAttended ?? "").localeCompare(a.lastAttended ?? "") ||
       a.name.localeCompare(b.name, "es"),
   );
 }
 
-/** The line under the name: when they last came, and how often. */
-export function suggestionReason(s: Pick<Suggestion, "lastAttended" | "attended">): string {
+/** The line under the name: a declared usual slot, or when they last came. */
+export function suggestionReason(s: Pick<Suggestion, "habitual" | "lastAttended" | "attended">): string {
+  if (s.habitual || s.lastAttended === null) return "Viene este horario";
   const base = `Vino el ${dayMonth(s.lastAttended)}`;
   return s.attended > 1 ? `${base} · ${s.attended} de ${ATTENDANCE_SLOTS}` : base;
 }

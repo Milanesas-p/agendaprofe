@@ -44,7 +44,7 @@ if (!("PointerEvent" in window)) {
 const today = iso(new Date());
 
 const student = (id: string, name: string, balance = 0, over: Record<string, unknown> = {}) => ({
-  id, name, type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, balance, ...over,
+  id, name, type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, slots: [], balance, ...over,
 });
 
 const lesson = (id: string, studentId: string, status = "programada", start = "09:00", notified = false) => ({
@@ -204,7 +204,7 @@ describe("agenda with several students in one class", () => {
   });
 
   it("shows the player profile on the row and again in the student sheet", () => {
-    store.students = [student("s1", "María Pérez", 0, { category: "4ta", courtSide: "reves", recurringWeekday: 5, recurringTime: "14:00" })];
+    store.students = [student("s1", "María Pérez", 0, { category: "4ta", courtSide: "reves", slots: [{ weekday: 5, time: "14:00" }] })];
     store.lessons = [lesson("l1", "s1")];
     renderAgenda();
     expand();

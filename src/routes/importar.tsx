@@ -5,10 +5,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { slots, useStore, type ImportedStudent } from "@/lib/store";
 import { decodeImportFile, parseStudents } from "@/lib/import";
-import { buildStudentsWorkbook, isXlsxBytes, readStudentsWorkbook, rowsToTsv, SHEET_FILE_NAME, SHEET_MIME, weekdayLabel } from "@/lib/xlsx";
+import { buildStudentsWorkbook, isXlsxBytes, readStudentsWorkbook, rowsToTsv, scheduleCells, SHEET_FILE_NAME, SHEET_MIME } from "@/lib/xlsx";
 import { courtSideLabel, profileLabel } from "@/lib/player";
 import { payLabel } from "@/lib/pay";
-import { weeklySlotLabel } from "@/lib/agenda";
+import { slotsLabel } from "@/lib/agenda";
 
 export const Route = createFileRoute("/importar")({
   head: () => ({
@@ -59,17 +59,20 @@ function Importar() {
   /** A real workbook with the current roster, so the teacher edits and re-uploads it. */
   async function downloadTemplate() {
     try {
-      const rows = students.map((student) => [
-        student.name,
-        student.phone ?? "",
-        student.type,
-        student.pay === null ? "" : payLabel(student.pay),
-        student.category ?? "",
-        student.courtSide ? courtSideLabel(student.courtSide) : "",
-        student.recurringWeekday === null ? "" : weekdayLabel(student.recurringWeekday),
-        student.recurringTime ?? "",
-        student.id,
-      ]);
+      const rows = students.map((student) => {
+        const { dia, hora } = scheduleCells(student.slots);
+        return [
+          student.name,
+          student.phone ?? "",
+          student.type,
+          student.pay === null ? "" : payLabel(student.pay),
+          student.category ?? "",
+          student.courtSide ? courtSideLabel(student.courtSide) : "",
+          dia,
+          hora,
+          student.id,
+        ];
+      });
       const bytes = await buildStudentsWorkbook({ slots: slots(settings), rows });
       const url = URL.createObjectURL(new Blob([bytes], { type: SHEET_MIME }));
       const link = document.createElement("a");
@@ -177,7 +180,7 @@ function Importar() {
             </div>
             <ul className="space-y-2">
               {report.rows.map((row) => {
-                const detail = [profileLabel(row), weeklySlotLabel(row)].filter(Boolean).join(" · ");
+                const detail = [profileLabel(row), slotsLabel(row.slots)].filter(Boolean).join(" · ");
                 return (
                   <li key={row.line} className={`rounded-xl border p-3 ${row.error ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"}`}>
                     <div className="flex items-baseline gap-2">

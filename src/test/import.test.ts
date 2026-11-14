@@ -20,8 +20,7 @@ describe("importing students from pasted text", () => {
       pay: "mensual",
       category: "8va",
       courtSide: "reves",
-      recurringWeekday: 1,
-      recurringTime: "14:00",
+      slots: [{ weekday: 1, time: "14:00" }],
       error: null,
     });
   });
@@ -83,10 +82,10 @@ describe("importing students from pasted text", () => {
     expect(report.rows.map((row) => row.error)).toEqual([null, null, null, null]);
   });
 
-  it("defaults to fijo when the row carries a weekly slot", () => {
+  it("keeps a row without tipo as rotativo even when it names a usual slot", () => {
     const report = parseStudents("nombre,dia,hora\nMaxi Salas,viernes,18:00\n", { allowedSlots: ["18:00"] });
 
-    expect(report.rows[0]).toMatchObject({ type: "fijo", recurringWeekday: 5, recurringTime: "18:00" });
+    expect(report.rows[0]).toMatchObject({ type: "rotativo", slots: [{ weekday: 5, time: "18:00" }] });
   });
 
   it("keeps the good rows and explains the broken ones", () => {
@@ -136,13 +135,13 @@ describe("importing students from pasted text", () => {
     );
 
     expect(report.rows.map((r) => r.error)).toEqual([null, null, null, null]);
-    expect(report.rows.map((r) => r.recurringTime)).toEqual(["14:00", "14:00", "14:00", "00:30"]);
+    expect(report.rows.map((r) => r.slots[0]?.time)).toEqual(["14:00", "14:00", "14:00", "00:30"]);
   });
 
   it("rejects a twelve-hour time that does not exist", () => {
     const report = parseStudents("nombre,dia,hora\nMaxi Salas,lunes,13:00 PM\n", { allowedSlots: [] });
 
-    expect(report.rows[0]?.error).toBe("Hora inválida: 13:00 PM. Usá HH:MM.");
+    expect(report.rows[0]?.error).toBe("Hora inválida: 13:00 PM. Usá 8AM, 15hs o HH:MM.");
   });
 
   it("reads weekday names without accents or in numbers", () => {
@@ -150,7 +149,7 @@ describe("importing students from pasted text", () => {
       allowedSlots: ["09:00"],
     });
 
-    expect(report.rows.map((r) => r.recurringWeekday)).toEqual([3, 3, 3]);
+    expect(report.rows.map((r) => r.slots[0]?.weekday)).toEqual([3, 3, 3]);
   });
 });
 
@@ -234,7 +233,7 @@ describe("reading a completed file", () => {
       allowedSlots: ["14:00", "12:00"],
     });
 
-    expect(report.rows.map((row) => row.recurringTime)).toEqual(["14:00", "12:00"]);
+    expect(report.rows.map((row) => row.slots[0]?.time)).toEqual(["14:00", "12:00"]);
     expect(report.rows.map((row) => row.error)).toEqual([null, null]);
   });
 
@@ -255,5 +254,53 @@ describe("reading a completed file", () => {
     const bytes = new Uint8Array([0x4d, 0x61, 0x72, 0xed, 0x61]);
 
     expect(decodeImportFile(bytes.buffer)).toBe("María");
+  });
+});
+
+describe("reading the teacher's own notation", () => {
+  it("splits two days that share one time", () => {
+    const report = parseStudents("nombre,tipo,dia,hora\nFernanda Castro,fijo,Martes y viernes,8AM\n", {
+      allowedSlots: ["08:00"],
+    });
+
+    expect(report.rows[0]).toMatchObject({
+      type: "fijo",
+      slots: [{ weekday: 2, time: "08:00" }, { weekday: 5, time: "08:00" }],
+    });
+  });
+
+  it("pairs each day with its own time", () => {
+    const report = parseStudents(
+      "nombre,tipo,dia,hora\nCatalina,fijo,Martes y sabado,martes 11hs - sab 12hs\n",
+      { allowedSlots: ["11:00", "12:00"] },
+    );
+
+    expect(report.rows[0]?.slots).toEqual([
+      { weekday: 2, time: "11:00" },
+      { weekday: 6, time: "12:00" },
+    ]);
+  });
+
+  it("reads the shorthand the teacher uses", () => {
+    const report = parseStudents("nombre,dia,hora\nA,miercoles y viernes,Mier-16hs Vier 14hs\n", {
+      allowedSlots: ["16:00", "14:00"],
+    });
+
+    expect(report.rows[0]?.slots).toEqual([
+      { weekday: 3, time: "16:00" },
+      { weekday: 5, time: "14:00" },
+    ]);
+  });
+
+  it("maps comodin to indistinto", () => {
+    const report = parseStudents("nombre,posicion\nA,comodin\n", { allowedSlots: [] });
+
+    expect(report.rows[0]?.courtSide).toBe("indistinto");
+  });
+
+  it("rejects a day it cannot recognize instead of dropping it", () => {
+    const report = parseStudents("nombre,dia,hora\nA,martes y vir,vie 9hs\n", { allowedSlots: [] });
+
+    expect(report.rows[0]?.error).toBe("Día inválido: martes y vir.");
   });
 });
