@@ -141,6 +141,34 @@ describe("import page", () => {
     ]);
   });
 
+  it("writes an empty pago cell for a student without a decided mode", async () => {
+    store.students = [{
+      ...maxi,
+      id: "22222222-2222-4222-8222-222222222222",
+      name: "Ana Sin Pago",
+      pay: null,
+      category: null,
+      courtSide: null,
+      recurringWeekday: null,
+      recurringTime: null,
+    }];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /descargar plantilla/i }));
+
+    await vi.waitFor(() => expect(click).toHaveBeenCalled());
+
+    const blob = (URL.createObjectURL as unknown as { mock: { calls: Array<[Blob]> } }).mock.calls[0]?.[0];
+    const buffer = await new Promise<ArrayBuffer>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.readAsArrayBuffer(blob!);
+    });
+    const rows = await readStudentsWorkbook(new Uint8Array(buffer));
+
+    expect(rows[1]?.[3]).toBe("");
+  });
+
   it("reads the completed workbook into the same preview", async () => {
     const bytes = await buildStudentsWorkbook({
       slots: ["14:00"],

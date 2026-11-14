@@ -62,6 +62,12 @@ describe("importing students from pasted text", () => {
     ]);
   });
 
+  it("rejects a literal Sin definir cell instead of accepting it as a mode", () => {
+    const report = parseStudents("nombre,pago\nA,Sin definir\n", { allowedSlots: [] });
+
+    expect(report.rows[0]?.error).toBe("Pago inválido: Sin definir. Usá Mensual, Pago individual o Paga grupal.");
+  });
+
   it("reads the firme categories the teacher uses", () => {
     const report = parseStudents(
       "nombre,categoria\nA,6ta firme\nB,7ma firme\nC,8va firme\nD,8va Firme\n",
