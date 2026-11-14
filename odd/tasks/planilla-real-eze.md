@@ -17,7 +17,7 @@ Rama: `migracion-node-mysql`. Entrega: commits por work unit. Runner: `npx vites
 
 | ID | Spec | Ruta | Estado |
 |----|------|------|--------|
-| T1 | S1 | inline | hecho |
+| T1 | S1 | inline | hecho: `c710f06` + tests `649d7a9` |
 | T2 | S2, S7 | inline | pendiente |
 | T3 | S2, S5 | inline | pendiente |
 | T4 | S4 | inline | pendiente |
@@ -33,3 +33,4 @@ Rama: `migracion-node-mysql`. Entrega: commits por work unit. Runner: `npx vites
 - **L5** — Decisión de modelo: "Varios horarios por alumno (Recomendado)".
 - **L6** — Diagnóstico del archivo (0 de 62 importables): 62/62 teléfonos en notación científica; 62/62 horas en formato no soportado; 4 `comodin`; 20 filas con dos días; 22 `pago` vacío; 9 `tipo` vacío; 0 filas sin día/hora.
 - **L7** — "Perfecto" (aprueba pago `NULL` + "Sin definir").
+- **L8** — T1 hecho: migración aplicada a la base viva (columna `NULL` + CHECK con `IS NULL`), suite 321/321, `tsc` limpio, verificador independiente sin blockers (7/7 ítems); `review assess` = `medium`, `under_budget` (la revisión nativa queda pendiente en la slice).
