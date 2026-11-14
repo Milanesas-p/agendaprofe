@@ -18,11 +18,11 @@ Rama: `migracion-node-mysql`. Entrega: commits por work unit. Runner: `npx vites
 | ID | Spec | Ruta | Estado |
 |----|------|------|--------|
 | T1 | S1 | inline | hecho: `c710f06` + tests `649d7a9` |
-| T2 | S2, S7 | inline | pendiente |
-| T3 | S2, S5 | inline | pendiente |
-| T4 | S4 | inline | pendiente |
-| T5 | S3 | inline | pendiente |
-| T6 | S6 | inline | pendiente |
+| T2 | S2, S7 | inline | hecho |
+| T3 | S2, S5 | inline | hecho |
+| T4 | S4 | inline | hecho |
+| T5 | S3 | inline | hecho |
+| T6 | S6 | inline | hecho: 62 alumnos, 82 horarios |
 
 ## Log
 
@@ -34,3 +34,7 @@ Rama: `migracion-node-mysql`. Entrega: commits por work unit. Runner: `npx vites
 - **L6** — Diagnóstico del archivo (0 de 62 importables): 62/62 teléfonos en notación científica; 62/62 horas en formato no soportado; 4 `comodin`; 20 filas con dos días; 22 `pago` vacío; 9 `tipo` vacío; 0 filas sin día/hora.
 - **L7** — "Perfecto" (aprueba pago `NULL` + "Sin definir").
 - **L8** — T1 hecho: migración aplicada a la base viva (columna `NULL` + CHECK con `IS NULL`), suite 321/321, `tsc` limpio, verificador independiente sin blockers (7/7 ítems); `review assess` = `medium`, `under_budget` (la revisión nativa queda pendiente en la slice).
+- **L9** — T2-T5 hechos: `student_slots` reemplaza al par `recurring_*`; los `fijo` se agendan en todos sus horarios y los `rotativo` quedan como habituales. La plantilla round-trips varios horarios; el parser acepta `8AM`/`15hs`, teléfonos en notación científica, `comodin` y celdas compuestas. Las sugerencias priorizan el horario habitual. 344 tests verdes, `tsc` limpio, migraciones aplicadas a la base viva.
+- **L10** — Bug encontrado al insertar: `students.category` era `VARCHAR(8)` y "8va firme" mide 9, así que toda categoría firme fallaba. Migración `2026-11-14-category-width.sql` (a `VARCHAR(12)`) aplicada.
+- **L11** — T6 hecho: 62 alumnos y 82 horarios cargados (53 fijo, 9 rotativo; 40 mensual, 22 sin definir; 42 con un horario, 20 con dos). La planilla escribe "vir" por viernes en Lucia Gutierrez: el parser lo rechaza y se corrigió a viernes sólo para esta carga; conviene arreglar la celda en el Excel.
+- **L12** — Verificación independiente del bloque S2-S5/S7: 7/7 ítems cumplidos, sin blockers, 107/107 tests dirigidos + 24 probes. Advertencia A1 corregida: el formato `14h30` que el parser aceptaba antes volvió a aceptarse (con test). A2 aceptada: una celda `hora` compuesta exige los días también en `dia`; falla en voz alta y la plantilla siempre escribe las dos celdas. Suite completa 344/344 con `--maxWorkers=2` (el pool paralelo por defecto resulta flaky por timeouts bajo carga).
