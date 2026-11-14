@@ -100,7 +100,7 @@ const balancePhrase = (balance: number): string => {
 
 function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean }) {
   const { settings, lessons, addLesson } = useStore();
-  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, recurringWeekday: null, recurringTime: null, balance: 0 });
+  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: null, phone: null, category: null, courtSide: null, recurringWeekday: null, recurringTime: null, balance: 0 });
   const [booking, setBooking] = useState(false);
   const [date, setDate] = useState(() => iso(new Date()));
   const [start, setStart] = useState("");
@@ -127,9 +127,9 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
     } finally { setSubmitting(false); }
   }
   const seg = <K extends "type" | "pay">(k: K, opts: Array<{ value: Student[K]; label: string }>) => (
-    <div className={`grid gap-2 ${opts.length > 2 ? "grid-cols-3" : "grid-cols-2"}`}>
+    <div className={`grid gap-2 ${opts.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
       {opts.map((o) => (
-        <Button variant="ghost" key={o.value} onClick={() => setF({ ...f, [k]: o.value })} className={`h-11 rounded-lg px-2 text-[13px] font-semibold leading-tight ${f[k] === o.value ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>{o.label}</Button>
+        <Button variant="ghost" key={o.label} onClick={() => setF({ ...f, [k]: o.value })} className={`h-11 rounded-lg px-2 text-[13px] font-semibold leading-tight ${f[k] === o.value ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>{o.label}</Button>
       ))}
     </div>
   );
@@ -140,7 +140,7 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
         <input aria-label="Nombre y apellido" placeholder="Nombre y apellido" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]" />
         <input type="tel" inputMode="tel" aria-label="Teléfono" placeholder="Teléfono (opcional)" value={f.phone ?? ""} onChange={(e) => setF({ ...f, phone: e.target.value === "" ? null : e.target.value })} className="h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]" />
         {seg("type", [{ value: "fijo", label: "Fijo" }, { value: "rotativo", label: "Rotativo" }])}
-        {seg("pay", PAY_MODES.map((mode) => ({ value: mode, label: payLabel(mode) })))}
+        {seg("pay", [...PAY_MODES.map((mode) => ({ value: mode, label: payLabel(mode) })), { value: null, label: payLabel(null) }])}
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-sm font-semibold">Categoría
             <select

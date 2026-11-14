@@ -27,7 +27,7 @@ const { store, navigate } = vi.hoisted(() => ({
       id: string;
       name: string;
       type: string;
-      pay: string;
+      pay: string | null;
       phone: string | null;
       category: string | null;
       courtSide: string | null;
@@ -215,7 +215,7 @@ describe("import page", () => {
         name: "Maxi Salas",
         phone: "5492302666351",
         type: "fijo",
-        pay: "mensual",
+        pay: null,
         category: null,
         courtSide: null,
         recurringWeekday: 1,

@@ -63,7 +63,7 @@ function Importar() {
         student.name,
         student.phone ?? "",
         student.type,
-        payLabel(student.pay),
+        student.pay === null ? "" : payLabel(student.pay),
         student.category ?? "",
         student.courtSide ? courtSideLabel(student.courtSide) : "",
         student.recurringWeekday === null ? "" : weekdayLabel(student.recurringWeekday),

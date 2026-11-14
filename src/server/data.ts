@@ -15,7 +15,8 @@ export type StudentDto = {
   id: string;
   name: string;
   type: "fijo" | "rotativo";
-  pay: PayMode;
+  /** Null when the teacher did not decide the mode yet. */
+  pay: PayMode | null;
   phone: string | null;
   /** Padel category and court side, or null when the teacher did not set them. */
   category: Category | null;
@@ -120,6 +121,12 @@ function text(value: unknown, field: string, max: number): string {
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
   if (typeof value !== "string" || !allowed.includes(value as T)) throw new Error(`Dato inválido: ${field}.`);
   return value as T;
+}
+
+/** Optional payment mode: NULL means the teacher left it undecided. */
+function payMode(value: unknown): PayMode | null {
+  if (value === null || value === undefined || value === "") return null;
+  return oneOf(value, PAY_MODES, "modalidad de pago");
 }
 
 /** Optional whole hour: a missing value means "no break", not zero. */
@@ -272,7 +279,7 @@ export const addStudent = createServerFn({ method: "POST" })
     return {
       name: text(raw["name"], "nombre", 120),
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
-      pay: oneOf(raw["pay"], PAY_MODES, "modalidad de pago"),
+      pay: payMode(raw["pay"]),
       phone: normalizePhone(raw["phone"]),
       ...playerProfile(raw),
       ...recurringSlot(raw),
@@ -296,7 +303,7 @@ export const updateStudent = createServerFn({ method: "POST" })
       id: rowId(raw["id"]),
       name: text(raw["name"], "nombre", 120),
       type: oneOf(raw["type"], ["fijo", "rotativo"] as const, "tipo"),
-      pay: oneOf(raw["pay"], PAY_MODES, "modalidad de pago"),
+      pay: payMode(raw["pay"]),
       phone: normalizePhone(raw["phone"]),
       ...playerProfile(raw),
       ...recurringSlot(raw),
@@ -640,7 +647,7 @@ export const importStudents = createServerFn({ method: "POST" })
         id: optionalStudentId(student["id"]),
         name: text(student["name"], "nombre", 120),
         type: oneOf(student["type"], ["fijo", "rotativo"] as const, "tipo"),
-        pay: oneOf(student["pay"], PAY_MODES, "modalidad de pago"),
+        pay: payMode(student["pay"]),
         phone: normalizePhone(student["phone"]),
         ...playerProfile(student),
         ...recurringSlot(student),

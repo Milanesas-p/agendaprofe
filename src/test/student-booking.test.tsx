@@ -41,12 +41,13 @@ function chooseLesson() {
   fireEvent.change(screen.getByLabelText("Horario"), { target: { value: "09:00" } });
 }
 describe("payment modes in the editor", () => {
-  it("offers the three modes the teacher uses", () => {
+  it("offers the three modes plus an undecided option", () => {
     openEditor();
 
     expect(screen.getByRole("button", { name: "Mensual" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Pago individual" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Paga grupal" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sin definir" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Semanal" })).toBeNull();
   });
 });
@@ -58,7 +59,7 @@ describe("booking from student form", () => {
     chooseLesson();
     fireEvent.click(screen.getByRole("button", { name: "Guardar y reservar" }));
     await waitFor(() => expect(store.addLesson).toHaveBeenCalledWith({ date: "2026-11-02", start: "09:00", studentId: "student-1" }));
-    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, recurringWeekday: null, recurringTime: null, balance: 4 });
+    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: null, phone: null, category: null, courtSide: null, recurringWeekday: null, recurringTime: null, balance: 4 });
   });
   it("retries a failed booking without creating another student", async () => {
     store.addLesson.mockResolvedValueOnce(false).mockResolvedValueOnce(true);

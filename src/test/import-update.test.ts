@@ -164,6 +164,11 @@ describe("importing validator", () => {
     );
   });
 
+  it("accepts an undecided payment mode", () => {
+    expect(() => importStudents._validate({ students: [student({ pay: null })] })).not.toThrow();
+    expect(() => importStudents._validate({ students: [student({ pay: "" })] })).not.toThrow();
+  });
+
   it("accepts rows without id", () => {
     const result = importStudents._validate({ students: [student(), student({ id: ID })] });
 

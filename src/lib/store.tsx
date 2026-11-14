@@ -29,7 +29,8 @@ export type Student = {
   id: string;
   name: string;
   type: StudentType;
-  pay: PayMode;
+  /** Null means the teacher did not decide the mode yet. */
+  pay: PayMode | null;
   phone: string | null;
   /** Padel category and court side, or null when the teacher did not set them. */
   category: Category | null;
@@ -45,7 +46,7 @@ export type ImportedStudent = {
   name: string;
   phone: string | null;
   type: StudentType;
-  pay: PayMode;
+  pay: PayMode | null;
   category: Category | null;
   courtSide: CourtSide | null;
   recurringWeekday: number | null;

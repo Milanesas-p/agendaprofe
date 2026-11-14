@@ -37,7 +37,8 @@ CREATE TABLE students (
   owner_id   CHAR(36)     NOT NULL,
   name       VARCHAR(120) NOT NULL,
   type       VARCHAR(16)  NOT NULL,
-  pay        VARCHAR(16)  NOT NULL,
+  -- Null means the teacher has not decided the mode yet; the sheet may leave it blank.
+  pay        VARCHAR(16)  NULL,
   -- Optional: needed for the future "message this student on WhatsApp" button.
   phone      VARCHAR(32)  NULL,
   -- Optional player profile. Closed sets, mirrored in src/lib/player.ts.
@@ -63,7 +64,7 @@ CREATE TABLE students (
         AND recurring_time REGEXP '^([01][0-9]|2[0-3]):[0-5][0-9]$')
   ),
   CONSTRAINT students_type CHECK (type IN ('fijo', 'rotativo')),
-  CONSTRAINT students_pay CHECK (pay IN ('mensual', 'individual', 'grupal')),
+  CONSTRAINT students_pay CHECK (pay IS NULL OR pay IN ('mensual', 'individual', 'grupal')),
   CONSTRAINT students_category CHECK (
     category IS NULL OR category IN (
       '1ra', '2da', '3ra', '4ta', '5ta', '6ta', '6ta firme', '7ma', '7ma firme', '8va', '8va firme'

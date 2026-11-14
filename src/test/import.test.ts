@@ -41,10 +41,10 @@ describe("importing students from pasted text", () => {
     expect(report.error).toBe("La primera fila tiene que traer los títulos de las columnas.");
   });
 
-  it("fills the defaults: rotativo and mensual when nothing is said", () => {
+  it("fills the defaults: rotativo and no payment mode when nothing is said", () => {
     const report = parseStudents("nombre,telefono\nMaxi Salas,\n", { allowedSlots: [] });
 
-    expect(report.rows[0]).toMatchObject({ type: "rotativo", pay: "mensual", category: null, courtSide: null });
+    expect(report.rows[0]).toMatchObject({ type: "rotativo", pay: null, category: null, courtSide: null });
   });
 
   it("reads the three payment modes from their labels", () => {
@@ -53,7 +53,7 @@ describe("importing students from pasted text", () => {
       { allowedSlots: [] },
     );
 
-    expect(report.rows.map((row) => row.pay)).toEqual(["mensual", "individual", "grupal", "mensual"]);
+    expect(report.rows.map((row) => row.pay)).toEqual(["mensual", "individual", "grupal", null]);
     expect(report.rows.map((row) => row.error)).toEqual([
       null,
       null,

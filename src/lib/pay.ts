@@ -11,8 +11,8 @@ import { fold } from "@/lib/text";
 export const PAY_MODES = ["mensual", "individual", "grupal"] as const;
 export type PayMode = (typeof PAY_MODES)[number];
 
-export const payLabel = (mode: PayMode): string =>
-  mode === "individual" ? "Pago individual" : mode === "grupal" ? "Paga grupal" : "Mensual";
+export const payLabel = (mode: PayMode | null): string =>
+  mode === null ? "Sin definir" : mode === "individual" ? "Pago individual" : mode === "grupal" ? "Paga grupal" : "Mensual";
 
 /** Token or label coming from a sheet or a paste; null when it is not a mode. */
 export function payOf(value: string): PayMode | null {

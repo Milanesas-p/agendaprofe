@@ -20,7 +20,8 @@ export type ImportRow = {
   name: string;
   phone: string | null;
   type: "fijo" | "rotativo";
-  pay: PayMode;
+  /** Null when the sheet leaves `pago` blank: the mode is still undecided. */
+  pay: PayMode | null;
   category: Category | null;
   courtSide: CourtSide | null;
   recurringWeekday: number | null;
@@ -184,7 +185,7 @@ function readRow(line: number, cells: Cells, allowedSlots: readonly string[]): I
     name: raw.nombre,
     phone: null,
     type: "rotativo",
-    pay: "mensual",
+    pay: null,
     category: null,
     courtSide: null,
     recurringWeekday: null,

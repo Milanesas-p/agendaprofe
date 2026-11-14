@@ -13,6 +13,7 @@ describe("payment modes", () => {
     expect(payLabel("mensual")).toBe("Mensual");
     expect(payLabel("individual")).toBe("Pago individual");
     expect(payLabel("grupal")).toBe("Paga grupal");
+    expect(payLabel(null)).toBe("Sin definir");
   });
 
   it("reads the stored token", () => {
@@ -53,5 +54,15 @@ describe("payment modes through the sheet", () => {
     );
 
     expect(report.ready.map((row) => row.pay)).toEqual([...PAY_MODES]);
+  });
+
+  it("keeps a blank payment blank instead of guessing mensual", async () => {
+    const rows = [["Alumno sin pago", "", "fijo", "", "", "", "", "", "11111111-1111-4111-8111-111111111111"]];
+    const report = parseStudents(
+      rowsToTsv(await readStudentsWorkbook(await buildStudentsWorkbook({ slots: [], rows }))),
+      { allowedSlots: [] },
+    );
+
+    expect(report.ready[0]?.pay).toBeNull();
   });
 });
