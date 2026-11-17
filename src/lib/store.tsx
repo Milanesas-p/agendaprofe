@@ -14,6 +14,7 @@ import {
   setLessonNotified as setLessonNotifiedFn,
   updateStudent as updateStudentFn,
   updateProfile as updateProfileFn,
+  type RecurringConflict,
 } from "@/server/data";
 import { completeTour, getCurrentUser, loginUser, logoutUser, type AuthUser } from "@/server/auth";
 import { balanceDelta, slots, validSettings, type ClassStatus } from "./rules";
@@ -110,6 +111,29 @@ const C = createContext<Ctx | null>(null);
 const messageOf = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
+/**
+ * One toast line naming the real reason a fixed slot stayed pending: a full
+ * block and a time the workday no longer has are different problems.
+ */
+function conflictsMessage(conflicts: RecurringConflict[]): string {
+  const outside = conflicts.filter((c) => c.reason === "outside-blocks");
+  const full = conflicts.filter((c) => c.reason === "full");
+  const parts: string[] = [];
+  if (outside.length === 1) {
+    const one = outside[0]!;
+    parts.push(`${one.studentName} tiene horario fijo a las ${one.time}, fuera de la jornada configurada.`);
+  } else if (outside.length > 1) {
+    parts.push(`${outside.length} alumnos fijos tienen horario fuera de la jornada configurada.`);
+  }
+  if (full.length === 1) {
+    const one = full[0]!;
+    parts.push(`No se pudo agendar a ${one.studentName} el ${one.date} a las ${one.time}: la clase está llena.`);
+  } else if (full.length > 1) {
+    parts.push(`${full.length} clases fijas quedaron sin agendar porque el horario está lleno.`);
+  }
+  return parts.join(" ");
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [st, setSt] = useState<State>(empty);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -140,14 +164,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Tops up the weekly slots before the first snapshot, so the agenda never
         // flashes without the classes that are about to exist.
         const result = await materializeRecurringFn();
-        if (active && result.conflicts.length > 0) {
-          const first = result.conflicts[0]!;
-          toast.error(
-            result.conflicts.length === 1
-              ? `No se pudo agendar a ${first.studentName} el ${first.date} a las ${first.time}: la clase está llena.`
-              : `${result.conflicts.length} clases fijas quedaron sin agendar porque el horario está lleno.`,
-          );
-        }
+        if (active && result.conflicts.length > 0) toast.error(conflictsMessage(result.conflicts));
       } catch {
         if (active) toast.error("No pudimos completar las clases fijas.");
       }

@@ -1,5 +1,6 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { StoreProvider, useStore } from "@/lib/store";
 
 const { getSnapshot, materializeRecurring, saveSettings } = vi.hoisted(() => ({
@@ -74,5 +75,26 @@ describe("saving the working hours", () => {
     expect(saveSettings).toHaveBeenCalledTimes(1);
     expect(materializeRecurring).toHaveBeenCalledTimes(1);
     view.unmount();
+  });
+
+  it("blames the workday, not a full block, when a fixed slot fell outside it", async () => {
+    materializeRecurring.mockResolvedValue({
+      created: 0,
+      conflicts: [
+        { studentId: "s1", studentName: "Beto", date: "2026-10-28", time: "23:00", reason: "outside-blocks" },
+      ],
+    });
+
+    render(
+      <StoreProvider>
+        <div />
+      </StoreProvider>,
+    );
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Beto tiene horario fijo a las 23:00, fuera de la jornada configurada.",
+      ),
+    );
   });
 });

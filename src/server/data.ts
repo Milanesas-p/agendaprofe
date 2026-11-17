@@ -27,7 +27,14 @@ export type StudentDto = {
 };
 
 /** A weekly occurrence that could not be created, so the teacher can react. */
-export type RecurringConflict = { studentId: string; studentName: string; date: string; time: string };
+export type RecurringConflict = {
+  studentId: string;
+  studentName: string;
+  date: string;
+  time: string;
+  /** Why it was skipped: the block is full, or the workday no longer has that time. */
+  reason: "full" | "outside-blocks";
+};
 
 export type MaterializeResult = { created: number; conflicts: RecurringConflict[] };
 
@@ -541,7 +548,7 @@ export const materializeRecurring = createServerFn({ method: "POST" }).handler(
 
         if (!allowed.includes(time)) {
           // The blocks were reconfigured under the series; report instead of guessing.
-          conflicts.push({ studentId: slot.id, studentName: slot.name, date: today, time });
+          conflicts.push({ studentId: slot.id, studentName: slot.name, date: today, time, reason: "outside-blocks" });
           continue;
         }
 
@@ -564,7 +571,7 @@ export const materializeRecurring = createServerFn({ method: "POST" }).handler(
           const active = Number((countRows as Array<{ n: number }>)[0]?.n ?? 0);
           if (!canAddToLesson(active)) {
             // Stop here so the week stays pending and the warning repeats.
-            conflicts.push({ studentId: slot.id, studentName: slot.name, date, time });
+            conflicts.push({ studentId: slot.id, studentName: slot.name, date, time, reason: "full" });
             break;
           }
 

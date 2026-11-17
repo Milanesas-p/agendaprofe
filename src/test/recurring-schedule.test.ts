@@ -140,8 +140,28 @@ describe("materializeRecurring", () => {
 
     expect(result.created).toBe(0);
     expect(result.conflicts).toHaveLength(1);
-    expect(result.conflicts[0]).toMatchObject({ studentName: "Ana", date: "2026-10-30", time: "14:00" });
+    expect(result.conflicts[0]).toMatchObject({
+      studentName: "Ana",
+      date: "2026-10-30",
+      time: "14:00",
+      reason: "full",
+    });
     expect(lastDateUpdates).toHaveLength(0);
+  });
+
+  it("says a slot was left out by the workday, not that its block was full", async () => {
+    // The workday ends at 21:00, so a 23:00 fixed slot has no block at all.
+    series = [{ id: "s2", name: "Beto", weekday: 5, start_time: "23:00", last_generated: null }];
+
+    const result = await data.materializeRecurring._handler({ data: {} });
+
+    expect(inserts).toHaveLength(0);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]).toMatchObject({
+      studentName: "Beto",
+      time: "23:00",
+      reason: "outside-blocks",
+    });
   });
 
   it("ignores students without a weekly slot", async () => {
