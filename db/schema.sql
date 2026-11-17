@@ -98,6 +98,9 @@ CREATE TABLE lessons (
   -- Set when the teacher sends the WhatsApp reminder for this class; NULL means
   -- nobody was told yet. Moving the class clears it: it was a different slot.
   notified_at TIMESTAMP    NULL,
+  -- Where the class came from when it was moved; NULL means it never moved.
+  moved_from_date  DATE    NULL,
+  moved_from_start CHAR(5) NULL,
   -- NULL when cancelled, so the UNIQUE key below only guards active rows.
   slot_key    VARCHAR(20)  GENERATED ALWAYS AS (
     IF(status = 'cancelada', NULL, CONCAT(lesson_date, '#', start_time))

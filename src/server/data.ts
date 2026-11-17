@@ -56,6 +56,8 @@ export type LessonDto = {
   status: ClassStatus;
   /** True once the teacher sent this class' WhatsApp reminder. */
   notified: boolean;
+  /** Original slot when the teacher moved it, or null. */
+  movedFrom: { date: string; start: string } | null;
 };
 
 export type SettingsDto = {
@@ -80,7 +82,13 @@ const DEFAULT_SETTINGS: SettingsDto = {
   noticeTemplate: null,
 };
 
-const STATUSES: readonly ClassStatus[] = ["programada", "confirmado", "presente", "ausente", "cancelada"];
+const STATUSES: readonly ClassStatus[] = [
+  "programada",
+  "confirmado",
+  "presente",
+  "ausente",
+  "cancelada",
+];
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 /** Mirrors the column width, so MySQL never silently truncates a template. */
@@ -135,7 +143,8 @@ function text(value: unknown, field: string, max: number): string {
 }
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
-  if (typeof value !== "string" || !allowed.includes(value as T)) throw new Error(`Dato inválido: ${field}.`);
+  if (typeof value !== "string" || !allowed.includes(value as T))
+    throw new Error(`Dato inválido: ${field}.`);
   return value as T;
 }
 
@@ -152,7 +161,8 @@ function optionalInteger(value: unknown, field: string): number | null {
 }
 
 function integer(value: unknown, field: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value)) throw new Error(`Dato inválido: ${field}.`);
+  if (typeof value !== "number" || !Number.isInteger(value))
+    throw new Error(`Dato inválido: ${field}.`);
   return value;
 }
 
@@ -227,17 +237,25 @@ async function syncSlots(
  * Reads the optional player profile. A missing value clears it; anything present
  * must belong to the closed set the column's CHECK also enforces.
  */
-function playerProfile(input: Record<string, unknown>): { category: Category | null; courtSide: CourtSide | null } {
+function playerProfile(input: Record<string, unknown>): {
+  category: Category | null;
+  courtSide: CourtSide | null;
+} {
   const category = input["category"];
   const courtSide = input["courtSide"];
   return {
-    category: category === null || category === undefined ? null : oneOf(category, CATEGORIES, "categoría"),
-    courtSide: courtSide === null || courtSide === undefined ? null : oneOf(courtSide, COURT_SIDES, "posición"),
+    category:
+      category === null || category === undefined ? null : oneOf(category, CATEGORIES, "categoría"),
+    courtSide:
+      courtSide === null || courtSide === undefined
+        ? null
+        : oneOf(courtSide, COURT_SIDES, "posición"),
   };
 }
 
 function rowId(value: unknown): string {
-  if (typeof value !== "string" || !/^[0-9a-fA-F-]{36}$/.test(value)) throw new Error("Identificador inválido.");
+  if (typeof value !== "string" || !/^[0-9a-fA-F-]{36}$/.test(value))
+    throw new Error("Identificador inválido.");
   return value;
 }
 
@@ -290,59 +308,72 @@ type RawStudentRow = {
   balance: number;
 };
 
-export const getSnapshot = createServerFn({ method: "GET" }).handler(async (): Promise<Snapshot> => {
-  const ownerId = await requireUserId();
-  const [studentRows] = await db().execute(
-    "SELECT id, name, type, pay, phone, category, court_side, balance FROM students WHERE owner_id = ? ORDER BY name",
-    [ownerId],
-  );
-  const [slotRows] = await db().execute(
-    "SELECT student_id, weekday, start_time FROM student_slots WHERE owner_id = ? ORDER BY weekday, start_time",
-    [ownerId],
-  );
-  const slotsByStudent = new Map<string, StudentSlot[]>();
-  for (const row of slotRows as Array<{ student_id: string; weekday: number; start_time: string }>) {
-    const list = slotsByStudent.get(row.student_id) ?? [];
-    list.push({ weekday: Number(row.weekday), time: row.start_time });
-    slotsByStudent.set(row.student_id, list);
-  }
-  const [lessonRows] = await db().execute(
-    `SELECT id, lesson_date, start_time, student_id, status, notified_at IS NOT NULL AS notified
+export const getSnapshot = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Snapshot> => {
+    const ownerId = await requireUserId();
+    const [studentRows] = await db().execute(
+      "SELECT id, name, type, pay, phone, category, court_side, balance FROM students WHERE owner_id = ? ORDER BY name",
+      [ownerId],
+    );
+    const [slotRows] = await db().execute(
+      "SELECT student_id, weekday, start_time FROM student_slots WHERE owner_id = ? ORDER BY weekday, start_time",
+      [ownerId],
+    );
+    const slotsByStudent = new Map<string, StudentSlot[]>();
+    for (const row of slotRows as Array<{
+      student_id: string;
+      weekday: number;
+      start_time: string;
+    }>) {
+      const list = slotsByStudent.get(row.student_id) ?? [];
+      list.push({ weekday: Number(row.weekday), time: row.start_time });
+      slotsByStudent.set(row.student_id, list);
+    }
+    const [lessonRows] = await db().execute(
+      `SELECT id, lesson_date, start_time, student_id, status, notified_at IS NOT NULL AS notified,
+        moved_from_date, moved_from_start
       FROM lessons WHERE owner_id = ?
         AND lesson_date BETWEEN DATE_SUB(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
       ORDER BY lesson_date, start_time`,
-    [ownerId, LESSON_WINDOW_PAST_DAYS, LESSON_WINDOW_FUTURE_DAYS],
-  );
-  const students = (studentRows as RawStudentRow[]).map((s) => ({
-    id: s.id,
-    name: s.name,
-    type: s.type,
-    pay: s.pay,
-    phone: s.phone ?? null,
-    category: (s.category ?? null) as Category | null,
-    courtSide: (s.court_side ?? null) as CourtSide | null,
-    slots: slotsByStudent.get(s.id) ?? [],
-    balance: Number(s.balance),
-  }));
-  const lessons = (
-    lessonRows as Array<{
-      id: string;
-      lesson_date: string;
-      start_time: string;
-      student_id: string;
-      status: ClassStatus;
-      notified: number | boolean;
-    }>
-  ).map((l) => ({
-    id: l.id,
-    date: l.lesson_date,
-    start: l.start_time,
-    studentId: l.student_id,
-    status: l.status,
-    notified: Boolean(Number(l.notified)),
-  }));
-  return { students, lessons, settings: await readSettings(ownerId) };
-});
+      [ownerId, LESSON_WINDOW_PAST_DAYS, LESSON_WINDOW_FUTURE_DAYS],
+    );
+    const students = (studentRows as RawStudentRow[]).map((s) => ({
+      id: s.id,
+      name: s.name,
+      type: s.type,
+      pay: s.pay,
+      phone: s.phone ?? null,
+      category: (s.category ?? null) as Category | null,
+      courtSide: (s.court_side ?? null) as CourtSide | null,
+      slots: slotsByStudent.get(s.id) ?? [],
+      balance: Number(s.balance),
+    }));
+    const lessons = (
+      lessonRows as Array<{
+        id: string;
+        lesson_date: string;
+        start_time: string;
+        student_id: string;
+        status: ClassStatus;
+        notified: number | boolean;
+        moved_from_date: string | null;
+        moved_from_start: string | null;
+      }>
+    ).map((l) => ({
+      id: l.id,
+      date: l.lesson_date,
+      start: l.start_time,
+      studentId: l.student_id,
+      status: l.status,
+      notified: Boolean(Number(l.notified)),
+      movedFrom:
+        l.moved_from_date && l.moved_from_start
+          ? { date: l.moved_from_date, start: l.moved_from_start }
+          : null,
+    }));
+    return { students, lessons, settings: await readSettings(ownerId) };
+  },
+);
 
 export const addStudent = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
@@ -363,7 +394,17 @@ export const addStudent = createServerFn({ method: "POST" })
     await withTransaction(async (connection) => {
       await connection.execute(
         "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [id, ownerId, data.name, data.type, data.pay, data.phone, data.category, data.courtSide, data.balance],
+        [
+          id,
+          ownerId,
+          data.name,
+          data.type,
+          data.pay,
+          data.phone,
+          data.category,
+          data.courtSide,
+          data.balance,
+        ],
       );
       await syncSlots(connection, ownerId, id, data.slots);
     });
@@ -391,9 +432,19 @@ export const updateStudent = createServerFn({ method: "POST" })
     await withTransaction(async (connection) => {
       const [result] = await connection.execute(
         "UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ? WHERE id = ? AND owner_id = ?",
-        [data.name, data.type, data.pay, data.phone, data.category, data.courtSide, data.id, ownerId],
+        [
+          data.name,
+          data.type,
+          data.pay,
+          data.phone,
+          data.category,
+          data.courtSide,
+          data.id,
+          ownerId,
+        ],
       );
-      if ((result as { affectedRows: number }).affectedRows === 0) throw new Error("Ese alumno no existe.");
+      if ((result as { affectedRows: number }).affectedRows === 0)
+        throw new Error("Ese alumno no existe.");
       await syncSlots(connection, ownerId, data.id, data.slots);
     });
   });
@@ -411,7 +462,8 @@ export const adjustBalance = createServerFn({ method: "POST" })
       "UPDATE students SET balance = balance + ? WHERE id = ? AND owner_id = ?",
       [data.delta, data.id, ownerId],
     );
-    if ((result as { affectedRows: number }).affectedRows === 0) throw new Error("Ese alumno no existe.");
+    if ((result as { affectedRows: number }).affectedRows === 0)
+      throw new Error("Ese alumno no existe.");
   });
 
 export const addLesson = createServerFn({ method: "POST" })
@@ -420,7 +472,8 @@ export const addLesson = createServerFn({ method: "POST" })
     const date = raw["date"];
     const start = raw["start"];
     if (typeof date !== "string" || !DATE_PATTERN.test(date)) throw new Error("Fecha inválida.");
-    if (typeof start !== "string" || !TIME_PATTERN.test(start)) throw new Error("Horario inválido.");
+    if (typeof start !== "string" || !TIME_PATTERN.test(start))
+      throw new Error("Horario inválido.");
     return { date, start, studentId: rowId(raw["studentId"]) };
   })
   .handler(async ({ data }): Promise<string> => {
@@ -512,7 +565,8 @@ export const setLessonNotified = createServerFn({ method: "POST" })
       "UPDATE lessons SET notified_at = IF(?, NOW(), NULL) WHERE id = ? AND owner_id = ?",
       [data.notified ? 1 : 0, data.id, ownerId],
     );
-    if (!(result as { affectedRows?: number }).affectedRows) throw new Error("Esa clase no existe.");
+    if (!(result as { affectedRows?: number }).affectedRows)
+      throw new Error("Esa clase no existe.");
   });
 
 /** Today's local calendar date as `YYYY-MM-DD`, the floor for every top-up. */
@@ -644,20 +698,29 @@ export const moveLesson = createServerFn({ method: "POST" })
     const date = raw["date"];
     const start = raw["start"];
     if (typeof date !== "string" || !DATE_PATTERN.test(date)) throw new Error("Fecha inválida.");
-    if (typeof start !== "string" || !TIME_PATTERN.test(start)) throw new Error("Horario inválido.");
+    if (typeof start !== "string" || !TIME_PATTERN.test(start))
+      throw new Error("Horario inválido.");
     return { id: rowId(raw["id"]), date, start };
   })
   .handler(async ({ data }): Promise<void> => {
     const ownerId = await requireUserId();
     const allowed = slots(await readSettings(ownerId));
-    if (!allowed.includes(data.start)) throw new Error("Horario fuera de los bloques configurados.");
+    if (!allowed.includes(data.start))
+      throw new Error("Horario fuera de los bloques configurados.");
 
     await withTransaction(async (connection) => {
       const [rows] = await connection.execute(
         "SELECT lesson_date, start_time, student_id, status FROM lessons WHERE id = ? AND owner_id = ? FOR UPDATE",
         [data.id, ownerId],
       );
-      const lesson = (rows as Array<{ lesson_date: string; start_time: string; student_id: string; status: ClassStatus }>)[0];
+      const lesson = (
+        rows as Array<{
+          lesson_date: string;
+          start_time: string;
+          student_id: string;
+          status: ClassStatus;
+        }>
+      )[0];
       if (!lesson) throw new Error("Esa clase no existe.");
       if (lesson.status !== "programada" && lesson.status !== "confirmado") {
         throw new Error("Primero deshacé la asistencia para poder moverla.");
@@ -681,10 +744,16 @@ export const moveLesson = createServerFn({ method: "POST" })
         "SELECT id FROM lessons WHERE owner_id = ? AND student_id = ? AND lesson_date = ? AND start_time = ? AND status <> 'cancelada' AND id <> ?",
         [ownerId, lesson.student_id, data.date, data.start, data.id],
       );
-      if ((duplicate as unknown[]).length > 0) throw new Error("Ese alumno ya está en ese horario.");
+      if ((duplicate as unknown[]).length > 0)
+        throw new Error("Ese alumno ya está en ese horario.");
 
+      // MySQL applies the assignments left to right, so the origin is captured
+      // before the new date and time overwrite it.
       await connection.execute(
-        "UPDATE lessons SET lesson_date = ?, start_time = ?, notified_at = NULL WHERE id = ? AND owner_id = ?",
+        `UPDATE lessons
+            SET moved_from_date = lesson_date, moved_from_start = start_time,
+                lesson_date = ?, start_time = ?, notified_at = NULL
+          WHERE id = ? AND owner_id = ?`,
         [data.date, data.start, data.id, ownerId],
       );
     });
@@ -713,7 +782,10 @@ export const saveSettings = createServerFn({ method: "POST" })
       breakStart,
       breakEnd,
     };
-    if (!validSettings(settings)) throw new Error("Revisá las horas: el corte tiene que entrar en la jornada y caer en un bloque.");
+    if (!validSettings(settings))
+      throw new Error(
+        "Revisá las horas: el corte tiene que entrar en la jornada y caer en un bloque.",
+      );
     return settings;
   })
   .handler(async ({ data }): Promise<MaterializeResult> => {
@@ -726,7 +798,9 @@ export const saveSettings = createServerFn({ method: "POST" })
         "SELECT start_time FROM lessons WHERE owner_id = ? AND status <> 'cancelada'",
         [ownerId],
       );
-      const orphan = (rows as Array<{ start_time: string }>).find((l) => !allowed.includes(l.start_time));
+      const orphan = (rows as Array<{ start_time: string }>).find(
+        (l) => !allowed.includes(l.start_time),
+      );
       if (orphan) {
         throw new Error("Los nuevos bloques dejarían clases existentes fuera de la agenda.");
       }
@@ -783,8 +857,11 @@ export const importStudents = createServerFn({ method: "POST" })
       };
     });
     // MySQL compares ids case-insensitively, so the duplicate check has to as well.
-    const keys = students.map((student) => student.id?.toLowerCase()).filter((id) => id !== undefined);
-    if (new Set(keys).size !== keys.length) throw new Error("Hay alumnos repetidos en la plantilla.");
+    const keys = students
+      .map((student) => student.id?.toLowerCase())
+      .filter((id) => id !== undefined);
+    if (new Set(keys).size !== keys.length)
+      throw new Error("Hay alumnos repetidos en la plantilla.");
     return { students };
   })
   .handler(async ({ data }): Promise<number> => {
@@ -793,7 +870,9 @@ export const importStudents = createServerFn({ method: "POST" })
       const hasUpdates = data.students.some((student) => student.id !== null);
       if (hasUpdates) {
         // One lookup instead of a SELECT per row; an id of another owner never updates.
-        const [rows] = await connection.execute("SELECT id FROM students WHERE owner_id = ?", [ownerId]);
+        const [rows] = await connection.execute("SELECT id FROM students WHERE owner_id = ?", [
+          ownerId,
+        ]);
         const owned = new Set((rows as Array<{ id: string }>).map((row) => row.id));
         for (const student of data.students) {
           if (student.id !== null && !owned.has(student.id)) {
@@ -807,14 +886,32 @@ export const importStudents = createServerFn({ method: "POST" })
           await connection.execute(
             `UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ?
              WHERE id = ? AND owner_id = ?`,
-            [student.name, student.type, student.pay, student.phone, student.category, student.courtSide, student.id, ownerId],
+            [
+              student.name,
+              student.type,
+              student.pay,
+              student.phone,
+              student.category,
+              student.courtSide,
+              student.id,
+              ownerId,
+            ],
           );
           await syncSlots(connection, ownerId, student.id, student.slots);
         } else {
           const id = randomUUID();
           await connection.execute(
             "INSERT INTO students (id, owner_id, name, type, pay, phone, category, court_side, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
-            [id, ownerId, student.name, student.type, student.pay, student.phone, student.category, student.courtSide],
+            [
+              id,
+              ownerId,
+              student.name,
+              student.type,
+              student.pay,
+              student.phone,
+              student.category,
+              student.courtSide,
+            ],
           );
           await syncSlots(connection, ownerId, id, student.slots);
         }
@@ -831,7 +928,8 @@ export const saveNoticeTemplate = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     const raw = (input ?? {}) as Record<string, unknown>;
     const value = raw["template"];
-    if (value !== null && typeof value !== "string") throw new Error("La plantilla del aviso no es válida.");
+    if (value !== null && typeof value !== "string")
+      throw new Error("La plantilla del aviso no es válida.");
     const template = (value ?? "").trim();
     if (template.length > NOTICE_TEMPLATE_MAX) {
       throw new Error(`La plantilla no puede pasar de ${NOTICE_TEMPLATE_MAX} caracteres.`);

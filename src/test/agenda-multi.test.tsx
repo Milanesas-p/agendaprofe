@@ -7,8 +7,23 @@ import { iso } from "@/lib/store";
 
 const { store } = vi.hoisted(() => ({
   store: {
-    students: [] as { id: string; name: string; type: string; pay: string; phone: string | null; balance: number }[],
-    lessons: [] as { id: string; date: string; start: string; studentId: string; status: string; notified: boolean }[],
+    students: [] as {
+      id: string;
+      name: string;
+      type: string;
+      pay: string;
+      phone: string | null;
+      balance: number;
+    }[],
+    lessons: [] as {
+      id: string;
+      date: string;
+      start: string;
+      studentId: string;
+      status: string;
+      notified: boolean;
+      movedFrom?: { date: string; start: string } | null;
+    }[],
     settings: { startHour: 8, endHour: 10, blockMin: 60 },
     busy: false,
     loading: false,
@@ -25,7 +40,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   return {
     ...actual,
     Link: ({ to, activeOptions: _activeOptions, children, ...rest }: Record<string, unknown>) => (
-      <a href={String(to)} {...rest}>{children as React.ReactNode}</a>
+      <a href={String(to)} {...rest}>
+        {children as React.ReactNode}
+      </a>
     ),
   };
 });
@@ -44,11 +61,31 @@ if (!("PointerEvent" in window)) {
 const today = iso(new Date());
 
 const student = (id: string, name: string, balance = 0, over: Record<string, unknown> = {}) => ({
-  id, name, type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, slots: [], balance, ...over,
+  id,
+  name,
+  type: "fijo",
+  pay: "mensual",
+  phone: null,
+  category: null,
+  courtSide: null,
+  slots: [],
+  balance,
+  ...over,
 });
 
-const lesson = (id: string, studentId: string, status = "programada", start = "09:00", notified = false) => ({
-  id, date: today, start, studentId, status, notified,
+const lesson = (
+  id: string,
+  studentId: string,
+  status = "programada",
+  start = "09:00",
+  notified = false,
+) => ({
+  id,
+  date: today,
+  start,
+  studentId,
+  status,
+  notified,
 });
 
 function renderAgenda() {
@@ -58,7 +95,8 @@ function renderAgenda() {
 }
 
 /** Opens one hour of the day, which is where every row control lives. */
-const expand = (t = "09:00") => fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${t},`) }));
+const expand = (t = "09:00") =>
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${t},`) }));
 
 /** Drags a row sideways with a pointer, the way a thumb would. */
 function swipe(el: Element, dx: number) {
@@ -183,7 +221,10 @@ describe("agenda with several students in one class", () => {
   it("does not count a cancelled student against the four places", () => {
     store.students = ["s1", "s2", "s3", "s4"].map((id, i) => student(id, `Alumno ${i + 1}`));
     store.lessons = [
-      lesson("l1", "s1"), lesson("l2", "s2"), lesson("l3", "s3"), lesson("l4", "s4", "cancelada"),
+      lesson("l1", "s1"),
+      lesson("l2", "s2"),
+      lesson("l3", "s3"),
+      lesson("l4", "s4", "cancelada"),
     ];
     renderAgenda();
     expand();
@@ -204,7 +245,13 @@ describe("agenda with several students in one class", () => {
   });
 
   it("shows the player profile on the row and again in the student sheet", () => {
-    store.students = [student("s1", "María Pérez", 0, { category: "4ta", courtSide: "reves", slots: [{ weekday: 5, time: "14:00" }] })];
+    store.students = [
+      student("s1", "María Pérez", 0, {
+        category: "4ta",
+        courtSide: "reves",
+        slots: [{ weekday: 5, time: "14:00" }],
+      }),
+    ];
     store.lessons = [lesson("l1", "s1")];
     renderAgenda();
     expand();
@@ -242,7 +289,8 @@ describe("agenda with several students in one class", () => {
 });
 
 describe("swiping a student to confirm or release the slot", () => {
-  const row = (name: string) => screen.getByLabelText(`Marcar presente a ${name}`).closest("li") as HTMLElement;
+  const row = (name: string) =>
+    screen.getByLabelText(`Marcar presente a ${name}`).closest("li") as HTMLElement;
 
   it("confirms the class when the name is dragged to the right", async () => {
     store.students = [student("s1", "María Pérez")];
@@ -254,7 +302,10 @@ describe("swiping a student to confirm or release the slot", () => {
 
     await waitFor(() => expect(store.setStatus).toHaveBeenCalledWith("l1", "confirmado"));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith("Confirmaste a María Pérez", expect.objectContaining({ action: expect.anything() })),
+      expect(toast).toHaveBeenCalledWith(
+        "Confirmaste a María Pérez",
+        expect.objectContaining({ action: expect.anything() }),
+      ),
     );
   });
 
@@ -268,7 +319,10 @@ describe("swiping a student to confirm or release the slot", () => {
 
     await waitFor(() => expect(store.setStatus).toHaveBeenCalledWith("l1", "cancelada"));
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith("María Pérez no va", expect.objectContaining({ action: expect.anything() })),
+      expect(toast).toHaveBeenCalledWith(
+        "María Pérez no va",
+        expect.objectContaining({ action: expect.anything() }),
+      ),
     );
   });
 
@@ -291,7 +345,9 @@ describe("swiping a student to confirm or release the slot", () => {
 
     swipe(row("María Pérez"), 80);
     await waitFor(() => expect(toast).toHaveBeenCalled());
-    const options = (toast as unknown as { mock: { calls: [string, { action: { onClick: () => void } }][] } }).mock.calls[0]![1];
+    const options = (
+      toast as unknown as { mock: { calls: [string, { action: { onClick: () => void } }][] } }
+    ).mock.calls[0]![1];
     options.action.onClick();
 
     expect(store.setStatus).toHaveBeenLastCalledWith("l1", "programada");
@@ -376,5 +432,13 @@ describe("WhatsApp reminder from the agenda", () => {
     expand();
 
     expect(screen.queryByLabelText("Recordar por WhatsApp a María Pérez")).toBeNull();
+  });
+  it("marks a moved class with the slot it came from", () => {
+    store.students = [student("s1", "Ana")];
+    store.lessons = [{ ...lesson("l1", "s1"), movedFrom: { date: "2026-11-16", start: "10:00" } }];
+    renderAgenda();
+    expand();
+
+    expect(screen.getByText(/Movida desde Lun 10:00/)).toBeTruthy();
   });
 });

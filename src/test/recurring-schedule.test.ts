@@ -92,7 +92,7 @@ function wireDatabase() {
     }
     if (sql.startsWith("SELECT lesson_date, start_time, student_id, status"))
       return [lessonRow ? [lessonRow] : [], []];
-    if (sql.startsWith("UPDATE lessons SET lesson_date")) return [{ affectedRows: 1 }, []];
+    if (sql.includes("moved_from_date")) return [{ affectedRows: 1 }, []];
     return [[], []];
   });
 }
@@ -224,7 +224,12 @@ describe("moveLesson", () => {
   it("relocates the occurrence to another day and time", async () => {
     await expect(move()).resolves.toBeUndefined();
     const update = connectionExecute.mock.calls.find(([sql]) =>
-      String(sql).startsWith("UPDATE lessons SET lesson_date"),
+      String(sql).includes("moved_from_date"),
+    );
+    const sql = String(update?.[0]);
+    // The origin is captured before the new date and time overwrite it.
+    expect(sql.indexOf("moved_from_date = lesson_date")).toBeLessThan(
+      sql.indexOf("lesson_date = ?"),
     );
     expect(update?.[1]).toEqual([
       "2026-10-29",
