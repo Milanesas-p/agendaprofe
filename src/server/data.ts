@@ -3,7 +3,17 @@ import { createServerFn } from "@tanstack/react-start";
 import type { PoolConnection } from "mysql2/promise";
 import { findSessionUser } from "./session-user";
 import { db } from "./db";
-import { balanceDelta, canAddToLesson, slots, validSettings, MAX_STUDENTS_PER_LESSON, type ClassStatus } from "@/lib/rules";
+import {
+  balanceDelta,
+  canAddToLesson,
+  fixedSlotsOutsideBlocks,
+  outsideBlocksMessage,
+  slots,
+  validSettings,
+  MAX_STUDENTS_PER_LESSON,
+  type ClassStatus,
+  type FixedSlot,
+} from "@/lib/rules";
 import { normalizePhone } from "@/lib/phone";
 import { datesToGenerate, type StudentSlot } from "@/lib/recurrence";
 import { LESSON_WINDOW_FUTURE_DAYS, LESSON_WINDOW_PAST_DAYS } from "@/lib/lesson-window";
@@ -505,97 +515,119 @@ export const setLessonNotified = createServerFn({ method: "POST" })
     if (!(result as { affectedRows?: number }).affectedRows) throw new Error("Esa clase no existe.");
   });
 
+/** Today's local calendar date as `YYYY-MM-DD`, the floor for every top-up. */
+function localToday(): string {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+type FixedSeriesRow = {
+  id: string;
+  name: string;
+  weekday: number;
+  start_time: string;
+  last_generated: string | null;
+};
+
 /**
- * Tops up every fixed student's weekly slots up to the horizon.
+ * Tops up every fixed student's weekly slots up to the horizon, inside the
+ * caller's transaction.
  *
  * Idempotent and monotonic: it only looks at dates after each slot's
  * `last_generated`, so an occurrence the teacher already moved or cancelled
  * is never recreated. Only `fijo` slots are booked; a `rotativo` keeps its slots
  * as habitual times and is never booked automatically. A slot that is already full
  * stops that series and is reported, never swallowed.
+ *
+ * It reads its own series through the given connection, so saving the working
+ * hours can run this exact top-up atomically with the new day.
  */
+async function materializeOn(
+  connection: PoolConnection,
+  ownerId: string,
+  allowed: string[],
+  today: string,
+): Promise<MaterializeResult> {
+  const [rows] = await connection.execute(
+    `SELECT s.id, s.name, sl.weekday, sl.start_time, sl.last_generated
+       FROM student_slots sl
+       JOIN students s ON s.id = sl.student_id AND s.owner_id = sl.owner_id
+      WHERE sl.owner_id = ? AND s.type = 'fijo'
+      ORDER BY s.name, sl.weekday, sl.start_time`,
+    [ownerId],
+  );
+  const series = rows as FixedSeriesRow[];
+  if (series.length === 0) return { created: 0, conflicts: [] };
+
+  let created = 0;
+  const conflicts: RecurringConflict[] = [];
+
+  for (const slot of series) {
+    const weekday = Number(slot.weekday);
+    const time = slot.start_time;
+
+    if (!allowed.includes(time)) {
+      // The blocks were reconfigured under the series; report instead of guessing.
+      conflicts.push({
+        studentId: slot.id,
+        studentName: slot.name,
+        date: today,
+        time,
+        reason: "outside-blocks",
+      });
+      continue;
+    }
+
+    let resolved: string | null = null;
+    for (const date of datesToGenerate(weekday, slot.last_generated, today)) {
+      // Any row means this occurrence was already handled, moved or cancelled.
+      const [existing] = await connection.execute(
+        "SELECT id FROM lessons WHERE owner_id = ? AND student_id = ? AND lesson_date = ? AND start_time = ?",
+        [ownerId, slot.id, date, time],
+      );
+      if ((existing as unknown[]).length > 0) {
+        resolved = date;
+        continue;
+      }
+
+      const [countRows] = await connection.execute(
+        "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ? FOR UPDATE",
+        [ownerId, `${date}#${time}`],
+      );
+      const active = Number((countRows as Array<{ n: number }>)[0]?.n ?? 0);
+      if (!canAddToLesson(active)) {
+        // Stop here so the week stays pending and the warning repeats.
+        conflicts.push({ studentId: slot.id, studentName: slot.name, date, time, reason: "full" });
+        break;
+      }
+
+      await connection.execute(
+        "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
+        [randomUUID(), ownerId, date, time, slot.id],
+      );
+      created += 1;
+      resolved = date;
+    }
+
+    if (resolved && resolved !== slot.last_generated) {
+      await connection.execute(
+        "UPDATE student_slots SET last_generated = ? WHERE owner_id = ? AND student_id = ? AND weekday = ? AND start_time = ?",
+        [resolved, ownerId, slot.id, weekday, time],
+      );
+    }
+  }
+
+  return { created, conflicts };
+}
+
 export const materializeRecurring = createServerFn({ method: "POST" }).handler(
   async (): Promise<MaterializeResult> => {
     const ownerId = await requireUserId();
-    const now = new Date();
-    const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     const allowed = slots(await readSettings(ownerId));
-
-    const [rows] = await db().execute(
-      `SELECT s.id, s.name, sl.weekday, sl.start_time, sl.last_generated
-         FROM student_slots sl
-         JOIN students s ON s.id = sl.student_id AND s.owner_id = sl.owner_id
-        WHERE sl.owner_id = ? AND s.type = 'fijo'
-        ORDER BY s.name, sl.weekday, sl.start_time`,
-      [ownerId],
-    );
-    const series = rows as Array<{
-      id: string;
-      name: string;
-      weekday: number;
-      start_time: string;
-      last_generated: string | null;
-    }>;
-    if (series.length === 0) return { created: 0, conflicts: [] };
-
-    let created = 0;
-    const conflicts: RecurringConflict[] = [];
-
-    await withTransaction(async (connection) => {
-      for (const slot of series) {
-        const weekday = Number(slot.weekday);
-        const time = slot.start_time;
-
-        if (!allowed.includes(time)) {
-          // The blocks were reconfigured under the series; report instead of guessing.
-          conflicts.push({ studentId: slot.id, studentName: slot.name, date: today, time, reason: "outside-blocks" });
-          continue;
-        }
-
-        let resolved: string | null = null;
-        for (const date of datesToGenerate(weekday, slot.last_generated, today)) {
-          // Any row means this occurrence was already handled, moved or cancelled.
-          const [existing] = await connection.execute(
-            "SELECT id FROM lessons WHERE owner_id = ? AND student_id = ? AND lesson_date = ? AND start_time = ?",
-            [ownerId, slot.id, date, time],
-          );
-          if ((existing as unknown[]).length > 0) {
-            resolved = date;
-            continue;
-          }
-
-          const [countRows] = await connection.execute(
-            "SELECT COUNT(*) AS n FROM lessons WHERE owner_id = ? AND slot_key = ? FOR UPDATE",
-            [ownerId, `${date}#${time}`],
-          );
-          const active = Number((countRows as Array<{ n: number }>)[0]?.n ?? 0);
-          if (!canAddToLesson(active)) {
-            // Stop here so the week stays pending and the warning repeats.
-            conflicts.push({ studentId: slot.id, studentName: slot.name, date, time, reason: "full" });
-            break;
-          }
-
-          await connection.execute(
-            "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
-            [randomUUID(), ownerId, date, time, slot.id],
-          );
-          created += 1;
-          resolved = date;
-        }
-
-        if (resolved && resolved !== slot.last_generated) {
-          await connection.execute(
-            "UPDATE student_slots SET last_generated = ? WHERE owner_id = ? AND student_id = ? AND weekday = ? AND start_time = ?",
-            [resolved, ownerId, slot.id, weekday, time],
-          );
-        }
-      }
-    });
-
-    return { created, conflicts };
+    const today = localToday();
+    return withTransaction((connection) => materializeOn(connection, ownerId, allowed, today));
   },
 );
-
 /**
  * Relocates one occurrence. The original slot is genuinely released, so another
  * student can take it; the weekly series and the balance are untouched.
@@ -678,24 +710,43 @@ export const saveSettings = createServerFn({ method: "POST" })
     if (!validSettings(settings)) throw new Error("Revisá las horas: el corte tiene que entrar en la jornada y caer en un bloque.");
     return settings;
   })
-  .handler(async ({ data }): Promise<void> => {
+  .handler(async ({ data }): Promise<MaterializeResult> => {
     const ownerId = await requireUserId();
-    await withTransaction(async (connection) => {
+    const today = localToday();
+    return withTransaction(async (connection) => {
+      const allowed = slots(data);
+
       const [rows] = await connection.execute(
         "SELECT start_time FROM lessons WHERE owner_id = ? AND status <> 'cancelada'",
         [ownerId],
       );
-      const allowed = slots(data);
       const orphan = (rows as Array<{ start_time: string }>).find((l) => !allowed.includes(l.start_time));
       if (orphan) {
         throw new Error("Los nuevos bloques dejarían clases existentes fuera de la agenda.");
       }
+
+      // The source of truth, not the generated rows: a fixed slot with no lesson
+      // yet is exactly the one a narrower day would strand forever.
+      const [fixedRows] = await connection.execute(
+        `SELECT DISTINCT s.name AS name, sl.start_time AS time
+           FROM student_slots sl
+           JOIN students s ON s.id = sl.student_id AND s.owner_id = sl.owner_id
+          WHERE sl.owner_id = ? AND s.type = 'fijo'`,
+        [ownerId],
+      );
+      const outside = fixedSlotsOutsideBlocks(data, fixedRows as FixedSlot[]);
+      if (outside.length > 0) throw new Error(outsideBlocksMessage(outside));
+
       await connection.execute(
         `INSERT INTO court_settings (owner_id, start_hour, end_hour, block_min, break_start, break_end) VALUES (?, ?, ?, ?, ?, ?) AS incoming
          ON DUPLICATE KEY UPDATE start_hour = incoming.start_hour, end_hour = incoming.end_hour, block_min = incoming.block_min,
            break_start = incoming.break_start, break_end = incoming.break_end`,
         [ownerId, data.startHour, data.endHour, data.blockMin, data.breakStart, data.breakEnd],
       );
+
+      // Widening the day is what brings a fixed slot back inside the blocks: book
+      // it in this same transaction, so the new day is never saved half-applied.
+      return materializeOn(connection, ownerId, allowed, today);
     });
   });
 

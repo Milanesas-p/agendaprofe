@@ -60,6 +60,35 @@ export function slots(s: SlotRules): string[] {
 /** A lesson (one time slot) holds at most this many students. */
 export const MAX_STUDENTS_PER_LESSON = 4;
 
+/** One fixed weekly slot, as the schedule has to see it: whose it is, at what time. */
+export type FixedSlot = { name: string; time: string };
+
+/**
+ * The fixed slots the given workday cannot place.
+ *
+ * Compared against the source of truth (the student's own weekly slot), never
+ * against generated lessons: a slot can be pending and still be impossible, which
+ * is exactly the state that used to hide the problem.
+ */
+export function fixedSlotsOutsideBlocks(s: SlotRules, fixed: readonly FixedSlot[]): FixedSlot[] {
+  const allowed = slots(s);
+  return fixed.filter((slot) => !allowed.includes(slot.time));
+}
+
+/** Names the students a workday would leave out, with the times that have no block. */
+export function outsideBlocksMessage(outside: readonly FixedSlot[]): string {
+  const names = [...new Set(outside.map((slot) => slot.name))];
+  const times = [...new Set(outside.map((slot) => slot.time))].sort();
+  const who =
+    names.length === 1
+      ? names[0]!
+      : names.length === 2
+        ? `${names[0]} y ${names[1]}`
+        : `${names[0]}, ${names[1]} y ${names.length - 2} más`;
+  const verb = names.length === 1 ? "tiene" : "tienen";
+  return `${who} ${verb} horario fijo fuera de la jornada: ${times.join(", ")}.`;
+}
+
 /**
  * Whether another student still fits in a slot that already holds
  * `activeStudents` non-cancelled students. The server enforces this; the client

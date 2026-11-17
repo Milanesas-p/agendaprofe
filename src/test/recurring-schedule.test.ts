@@ -14,8 +14,14 @@ const { execute, connectionExecute, findSessionUser } = vi.hoisted(() => ({
 vi.mock("@tanstack/react-start", () => ({
   createServerFn: () => {
     const chain = {
-      validator: (fn: unknown) => { (chain as Record<string, unknown>)["_validate"] = fn; return chain; },
-      handler: (fn: unknown) => { (chain as Record<string, unknown>)["_handler"] = fn; return chain; },
+      validator: (fn: unknown) => {
+        (chain as Record<string, unknown>)["_validate"] = fn;
+        return chain;
+      },
+      handler: (fn: unknown) => {
+        (chain as Record<string, unknown>)["_handler"] = fn;
+        return chain;
+      },
     };
     return chain;
   },
@@ -38,7 +44,9 @@ vi.mock("@/server/db", () => ({
 vi.mock("@/server/session-user", () => ({ findSessionUser }));
 
 const data = (await import("@/server/data")) as unknown as {
-  materializeRecurring: { _handler: (args: { data: unknown }) => Promise<{ created: number; conflicts: unknown[] }> };
+  materializeRecurring: {
+    _handler: (args: { data: unknown }) => Promise<{ created: number; conflicts: unknown[] }>;
+  };
   moveLesson: { _handler: (args: { data: unknown }) => Promise<void> };
 };
 
@@ -67,15 +75,23 @@ function wireDatabase() {
   });
 
   connectionExecute.mockImplementation(async (sql: string, params: unknown[]) => {
+    if (sql.includes("FROM student_slots")) return [series, []];
     // The move duplicate check is the only one that filters by status and id.
     if (sql.includes("AND status <> 'cancelada'")) return [duplicateRow, []];
     if (sql.startsWith("SELECT id FROM lessons WHERE owner_id = ? AND student_id")) {
       return [existingDates.includes(String(params[2])) ? [{ id: "x" }] : [], []];
     }
     if (sql.startsWith("SELECT COUNT(*)")) return [[{ n: activeInSlot }], []];
-    if (sql.startsWith("INSERT INTO lessons")) { inserts.push(params); return [{ affectedRows: 1 }, []]; }
-    if (sql.startsWith("UPDATE student_slots SET last_generated")) { lastDateUpdates.push(params); return [{ affectedRows: 1 }, []]; }
-    if (sql.startsWith("SELECT lesson_date, start_time, student_id, status")) return [lessonRow ? [lessonRow] : [], []];
+    if (sql.startsWith("INSERT INTO lessons")) {
+      inserts.push(params);
+      return [{ affectedRows: 1 }, []];
+    }
+    if (sql.startsWith("UPDATE student_slots SET last_generated")) {
+      lastDateUpdates.push(params);
+      return [{ affectedRows: 1 }, []];
+    }
+    if (sql.startsWith("SELECT lesson_date, start_time, student_id, status"))
+      return [lessonRow ? [lessonRow] : [], []];
     if (sql.startsWith("UPDATE lessons SET lesson_date")) return [{ affectedRows: 1 }, []];
     return [[], []];
   });
@@ -100,7 +116,11 @@ beforeEach(() => {
 
 describe("materializeRecurring", () => {
   const friday = (lastDate: string | null = null): Series => ({
-    id: "s1", name: "Ana", weekday: 5, start_time: "14:00", last_generated: lastDate,
+    id: "s1",
+    name: "Ana",
+    weekday: 5,
+    start_time: "14:00",
+    last_generated: lastDate,
   });
 
   it("books every Friday of the next four weeks", async () => {
@@ -109,7 +129,12 @@ describe("materializeRecurring", () => {
     const result = await data.materializeRecurring._handler({ data: {} });
 
     expect(result.created).toBe(4);
-    expect(inserts.map((p) => p[2])).toEqual(["2026-10-30", "2026-11-06", "2026-11-13", "2026-11-20"]);
+    expect(inserts.map((p) => p[2])).toEqual([
+      "2026-10-30",
+      "2026-11-06",
+      "2026-11-13",
+      "2026-11-20",
+    ]);
     expect(lastDateUpdates[0]?.[0]).toBe("2026-11-20");
   });
 
@@ -176,7 +201,9 @@ describe("materializeRecurring", () => {
   it("only books the slots of fixed students", async () => {
     await data.materializeRecurring._handler({ data: {} });
 
-    const [sql] = execute.mock.calls.find(([text]) => String(text).includes("FROM student_slots")) ?? [];
+    const [sql] =
+      connectionExecute.mock.calls.find(([text]) => String(text).includes("FROM student_slots")) ??
+      [];
     expect(String(sql)).toContain("s.type = 'fijo'");
   });
 });
@@ -186,17 +213,34 @@ describe("moveLesson", () => {
     data.moveLesson._handler({ data: { id: "11111111-1111-1111-1111-111111111111", date, start } });
 
   beforeEach(() => {
-    lessonRow = { lesson_date: "2026-10-30", start_time: "14:00", student_id: "stu-1", status: "programada" };
+    lessonRow = {
+      lesson_date: "2026-10-30",
+      start_time: "14:00",
+      student_id: "stu-1",
+      status: "programada",
+    };
   });
 
   it("relocates the occurrence to another day and time", async () => {
     await expect(move()).resolves.toBeUndefined();
-    const update = connectionExecute.mock.calls.find(([sql]) => String(sql).startsWith("UPDATE lessons SET lesson_date"));
-    expect(update?.[1]).toEqual(["2026-10-29", "15:00", "11111111-1111-1111-1111-111111111111", "owner-1"]);
+    const update = connectionExecute.mock.calls.find(([sql]) =>
+      String(sql).startsWith("UPDATE lessons SET lesson_date"),
+    );
+    expect(update?.[1]).toEqual([
+      "2026-10-29",
+      "15:00",
+      "11111111-1111-1111-1111-111111111111",
+      "owner-1",
+    ]);
   });
 
   it("refuses to move a lesson that was already marked", async () => {
-    lessonRow = { lesson_date: "2026-10-30", start_time: "14:00", student_id: "stu-1", status: "presente" };
+    lessonRow = {
+      lesson_date: "2026-10-30",
+      start_time: "14:00",
+      student_id: "stu-1",
+      status: "presente",
+    };
     await expect(move()).rejects.toThrow("Primero deshacé la asistencia para poder moverla.");
   });
 
@@ -211,6 +255,8 @@ describe("moveLesson", () => {
   });
 
   it("refuses a slot outside the configured blocks", async () => {
-    await expect(move("2026-10-29", "23:30")).rejects.toThrow("Horario fuera de los bloques configurados.");
+    await expect(move("2026-10-29", "23:30")).rejects.toThrow(
+      "Horario fuera de los bloques configurados.",
+    );
   });
 });

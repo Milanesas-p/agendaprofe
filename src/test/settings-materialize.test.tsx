@@ -2,6 +2,7 @@ import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { StoreProvider, useStore } from "@/lib/store";
+import type { Student } from "@/lib/store";
 
 const { getSnapshot, materializeRecurring, saveSettings } = vi.hoisted(() => ({
   getSnapshot: vi.fn(),
@@ -43,28 +44,46 @@ const hours = {
   noticeTemplate: null,
 };
 
+const fixedBeto: Student = {
+  id: "s1",
+  name: "Beto",
+  type: "fijo",
+  pay: null,
+  phone: null,
+  category: null,
+  courtSide: null,
+  slots: [{ weekday: 5, time: "17:00" }],
+  balance: 0,
+};
+
+let store: ReturnType<typeof useStore> | undefined;
+
+function Probe() {
+  store = useStore();
+  return null;
+}
+
+async function mount() {
+  store = undefined;
+  const view = render(
+    <StoreProvider>
+      <Probe />
+    </StoreProvider>,
+  );
+  await waitFor(() => expect(store?.loading).toBe(false));
+  return view;
+}
+
 describe("saving the working hours", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSnapshot.mockResolvedValue({ students: [], lessons: [], settings: hours });
     materializeRecurring.mockResolvedValue({ created: 0, conflicts: [] });
-    saveSettings.mockResolvedValue(undefined);
+    saveSettings.mockResolvedValue({ created: 0, conflicts: [] });
   });
 
-  it("tops up the fixed slots right away, so a widened day needs no reload", async () => {
-    let store: ReturnType<typeof useStore> | undefined;
-    function Probe() {
-      store = useStore();
-      return null;
-    }
-
-    const view = render(
-      <StoreProvider>
-        <Probe />
-      </StoreProvider>,
-    );
-    await waitFor(() => expect(store?.loading).toBe(false));
-
+  it("needs no second round trip: the save already topped up the fixed slots", async () => {
+    const view = await mount();
     // The first load already topped up; only the save is under test here.
     materializeRecurring.mockClear();
 
@@ -73,7 +92,41 @@ describe("saving the working hours", () => {
     });
 
     expect(saveSettings).toHaveBeenCalledTimes(1);
-    expect(materializeRecurring).toHaveBeenCalledTimes(1);
+    expect(materializeRecurring).toHaveBeenCalledTimes(0);
+    view.unmount();
+  });
+
+  it("shows the conflicts the save came back with", async () => {
+    saveSettings.mockResolvedValue({
+      created: 0,
+      conflicts: [
+        { studentId: "s1", studentName: "Ana", date: "2026-10-30", time: "14:00", reason: "full" },
+      ],
+    });
+    const view = await mount();
+
+    await act(async () => {
+      await store?.setSettings(hours);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "No se pudo agendar a Ana el 2026-10-30 a las 14:00: la clase está llena.",
+    );
+    view.unmount();
+  });
+
+  it("refuses a day that leaves a fixed student out, before asking the server", async () => {
+    getSnapshot.mockResolvedValue({ students: [fixedBeto], lessons: [], settings: hours });
+    const view = await mount();
+    let saved: boolean | undefined;
+
+    await act(async () => {
+      saved = await store?.setSettings({ ...hours, endHour: 17 });
+    });
+
+    expect(saved).toBe(false);
+    expect(saveSettings).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Beto tiene horario fijo fuera de la jornada: 17:00.");
     view.unmount();
   });
 
@@ -81,7 +134,13 @@ describe("saving the working hours", () => {
     materializeRecurring.mockResolvedValue({
       created: 0,
       conflicts: [
-        { studentId: "s1", studentName: "Beto", date: "2026-10-28", time: "23:00", reason: "outside-blocks" },
+        {
+          studentId: "s1",
+          studentName: "Beto",
+          date: "2026-10-28",
+          time: "23:00",
+          reason: "outside-blocks",
+        },
       ],
     });
 

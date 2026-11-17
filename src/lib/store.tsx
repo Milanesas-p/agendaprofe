@@ -17,7 +17,14 @@ import {
   type RecurringConflict,
 } from "@/server/data";
 import { completeTour, getCurrentUser, loginUser, logoutUser, type AuthUser } from "@/server/auth";
-import { balanceDelta, slots, validSettings, type ClassStatus } from "./rules";
+import {
+  balanceDelta,
+  fixedSlotsOutsideBlocks,
+  outsideBlocksMessage,
+  slots,
+  validSettings,
+  type ClassStatus,
+} from "./rules";
 import type { Category, CourtSide } from "./player";
 import { PAY_MODES, type PayMode } from "./pay";
 import type { StudentSlot } from "./recurrence";
@@ -121,13 +128,17 @@ function conflictsMessage(conflicts: RecurringConflict[]): string {
   const parts: string[] = [];
   if (outside.length === 1) {
     const one = outside[0]!;
-    parts.push(`${one.studentName} tiene horario fijo a las ${one.time}, fuera de la jornada configurada.`);
+    parts.push(
+      `${one.studentName} tiene horario fijo a las ${one.time}, fuera de la jornada configurada.`,
+    );
   } else if (outside.length > 1) {
     parts.push(`${outside.length} alumnos fijos tienen horario fuera de la jornada configurada.`);
   }
   if (full.length === 1) {
     const one = full[0]!;
-    parts.push(`No se pudo agendar a ${one.studentName} el ${one.date} a las ${one.time}: la clase está llena.`);
+    parts.push(
+      `No se pudo agendar a ${one.studentName} el ${one.date} a las ${one.time}: la clase está llena.`,
+    );
   } else if (full.length > 1) {
     parts.push(`${full.length} clases fijas quedaron sin agendar porque el horario está lleno.`);
   }
@@ -297,15 +308,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     setSettings: async (s) => {
       if (!validSettings(s) || !user) return false;
-      if (st.lessons.some((l) => l.status !== "cancelada" && !slots(s).includes(l.start))) {
+      const allowed = slots(s);
+      if (st.lessons.some((l) => l.status !== "cancelada" && !allowed.includes(l.start))) {
         toast.error("Los nuevos bloques dejarían clases existentes fuera de la agenda.");
         return false;
       }
+      // A fixed slot with no lesson yet is invisible to the check above, so the
+      // day is also compared with the students' own weekly slots.
+      const fixed = st.students
+        .filter((student) => student.type === "fijo")
+        .flatMap((student) =>
+          student.slots.map((slot) => ({ name: student.name, time: slot.time })),
+        );
+      const outside = fixedSlotsOutsideBlocks(s, fixed);
+      if (outside.length > 0) {
+        toast.error(outsideBlocksMessage(outside));
+        return false;
+      }
       return changed(async () => {
-        await saveSettingsFn({ data: s });
-        // Widening the day can bring a fixed slot back inside the blocks: top up
-        // before the refresh, so those classes appear without reloading the app.
-        await afterScheduleChange();
+        // The server tops up the fixed slots inside the same transaction, so the
+        // agenda is complete when the refresh reads it; a full block comes back
+        // as a conflict instead of failing the save.
+        const result = await saveSettingsFn({ data: s });
+        if (result.conflicts.length > 0) toast.error(conflictsMessage(result.conflicts));
       }, "No se pudieron guardar los horarios.");
     },
   };

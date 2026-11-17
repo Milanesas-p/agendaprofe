@@ -8,3 +8,5 @@
 - Return mutation success from the shared store and close editors only after successful persistence; edit student details without writing their credit balance.
 - Keep date navigation and name matching in browser-safe helpers; initialize the current local date after hydration to avoid server/client timezone mismatches.
 - Student creation returns its generated ID; combined student/booking editors retain that ID on booking failure so retrying cannot create duplicate students.
+- Keep the schedule→lessons invariant on the server: saving the working hours validates against the fixed student slots and books them inside the same transaction, so a new day is never saved half-applied and the client cannot forget the top-up.
+- Say why a fixed slot stayed pending: a full block and a time the working hours no longer have are different problems, and each one names its own cause.
