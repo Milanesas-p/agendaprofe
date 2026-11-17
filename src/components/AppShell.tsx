@@ -119,9 +119,24 @@ export function AppShell() {
   );
 }
 
-export function PageHeader({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) {
+export function PageHeader({
+  title,
+  sub,
+  right,
+  sticky = true,
+}: {
+  title: string;
+  sub?: string;
+  right?: React.ReactNode;
+  /** A page with its own sticky block above the content turns this off. */
+  sticky?: boolean;
+}) {
   return (
-    <header className="sticky top-0 z-30 flex items-end justify-between gap-3 border-b border-border bg-background/90 px-4 pb-3 pt-4 backdrop-blur-xl lg:px-6 lg:pt-6">
+    <header
+      className={`flex items-end justify-between gap-3 border-b border-border bg-background/90 px-4 pb-3 pt-4 backdrop-blur-xl lg:px-6 lg:pt-6 ${
+        sticky ? "sticky top-0 z-30" : ""
+      }`}
+    >
       <div className="min-w-0">
         {sub && <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{sub}</p>}
         <h1 className="truncate text-3xl font-semibold tracking-tight text-foreground">{title}</h1>

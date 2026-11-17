@@ -118,6 +118,7 @@ function Agenda() {
     <>
       <Tour />
       <PageHeader
+        sticky={false}
         sub="Tu cancha hoy"
         title="Agenda"
         right={
@@ -134,7 +135,7 @@ function Agenda() {
           </div>
         }
       />
-      <div className="sticky top-[92px] z-20 space-y-3 border-b border-border bg-background px-4 py-3 lg:px-6">
+      <div className="sticky top-0 z-20 space-y-3 border-b border-border bg-background px-4 py-3 lg:px-6">
         <div className="grid grid-cols-2 rounded-lg bg-muted p-1">
           {(["dia", "semana"] as const).map((v) => (
             <Button variant="ghost" key={v} onClick={() => setView(v)} className={`h-10 rounded-md text-sm font-semibold ${view === v ? "bg-foreground text-background" : "text-muted-foreground"}`}>
