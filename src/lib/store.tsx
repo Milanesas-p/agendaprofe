@@ -284,7 +284,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toast.error("Los nuevos bloques dejarían clases existentes fuera de la agenda.");
         return false;
       }
-      return changed(() => saveSettingsFn({ data: s }), "No se pudieron guardar los horarios.");
+      return changed(async () => {
+        await saveSettingsFn({ data: s });
+        // Widening the day can bring a fixed slot back inside the blocks: top up
+        // before the refresh, so those classes appear without reloading the app.
+        await afterScheduleChange();
+      }, "No se pudieron guardar los horarios.");
     },
   };
 
