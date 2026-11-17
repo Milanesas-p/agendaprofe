@@ -76,7 +76,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, interactive-widget=resizes-content" },
       { title: "Pádel Pro — Clases y alumnos" },
       { name: "description", content: "Agenda, asistencia y saldos de clases de pádel." },
       { property: "og:title", content: "Pádel Pro — Clases y alumnos" },

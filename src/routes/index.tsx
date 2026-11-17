@@ -301,7 +301,9 @@ function Agenda() {
                 ))}
               </div>
             )}
-            <input type="search" aria-label="Buscar alumno para reservar" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full rounded-lg border border-border bg-card px-3" />
+            <div className="sticky top-0 z-10 -mx-5 bg-card px-5 pb-2">
+              <input type="search" aria-label="Buscar alumno para reservar" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full rounded-lg border border-border bg-card px-3" />
+            </div>
             {students.length === 0 && <p className="text-muted-foreground">Todavía no hay alumnos.</p>}
             {students.filter(s => matchesStudent(s.name, search) && !alreadyIn.has(s.id)).map((s) => (
               <Button variant="ghost" key={s.id} disabled={busy} onClick={async () => { if(await addLesson({ date: day, start: adding, studentId: s.id })) setAdding(null); }} className="flex h-14 w-full items-center justify-between rounded-xl border border-border bg-card px-4 font-semibold hover:bg-muted">
