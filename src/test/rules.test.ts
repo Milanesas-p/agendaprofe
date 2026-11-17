@@ -168,7 +168,7 @@ describe("fixed slots outside the workday", () => {
 
   it("names one student with the time that has no block", () => {
     expect(outsideBlocksMessage([{ name: "Beto", time: "17:00" }])).toBe(
-      "Beto tiene horario fijo fuera de la jornada: 17:00.",
+      "Beto tiene horario fijo fuera de la jornada configurada: 17:00.",
     );
   });
 
@@ -180,7 +180,7 @@ describe("fixed slots outside the workday", () => {
       { name: "Dani", time: "18:30" },
     ]);
     expect(message).toBe(
-      "Ana, Beto y 2 más tienen horario fijo fuera de la jornada: 17:00, 18:30.",
+      "Ana, Beto y 2 más tienen horario fijo fuera de la jornada configurada: 17:00, 18:30.",
     );
   });
 });

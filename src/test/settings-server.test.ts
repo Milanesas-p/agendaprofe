@@ -126,7 +126,9 @@ describe("saving the working hours", () => {
   it("refuses a day that would leave a fixed slot out, naming the student", async () => {
     fixed = [{ name: "Beto", start_time: "17:00", weekday: 5, last_generated: null }];
 
-    await expect(save(17)).rejects.toThrow("Beto tiene horario fijo fuera de la jornada: 17:00.");
+    await expect(save(17)).rejects.toThrow(
+      "Beto tiene horario fijo fuera de la jornada configurada: 17:00.",
+    );
 
     expect(upserts).toHaveLength(0);
     expect(lessonInserts).toHaveLength(0);

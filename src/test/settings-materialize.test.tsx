@@ -126,7 +126,9 @@ describe("saving the working hours", () => {
 
     expect(saved).toBe(false);
     expect(saveSettings).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith("Beto tiene horario fijo fuera de la jornada: 17:00.");
+    expect(toast.error).toHaveBeenCalledWith(
+      "Beto tiene horario fijo fuera de la jornada configurada: 17:00.",
+    );
     view.unmount();
   });
 

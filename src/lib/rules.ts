@@ -86,7 +86,7 @@ export function outsideBlocksMessage(outside: readonly FixedSlot[]): string {
         ? `${names[0]} y ${names[1]}`
         : `${names[0]}, ${names[1]} y ${names.length - 2} más`;
   const verb = names.length === 1 ? "tiene" : "tienen";
-  return `${who} ${verb} horario fijo fuera de la jornada: ${times.join(", ")}.`;
+  return `${who} ${verb} horario fijo fuera de la jornada configurada: ${times.join(", ")}.`;
 }
 
 /**
