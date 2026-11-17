@@ -39,6 +39,10 @@ type FixedRow = {
 let fixed: FixedRow[] = [];
 let lessonRows: Array<{ student_id: string; lesson_date: string; start_time: string }> = [];
 let failInsertAt: number | null = null; // 1-based: the INSERT that creates row n-th throws
+// A concurrent transaction committed these dates after our snapshot was taken:
+// the existence check cannot see them and the INSERT hits the unique key.
+let staleSnapshotDates = new Set<string>();
+let duplicateInsertDates = new Set<string>();
 
 const lifecycle = { getConnections: 0, begins: 0, commits: 0, rollbacks: 0 };
 const sqlLog: Array<{ sql: string; params: unknown[]; onConnection: boolean }> = [];
@@ -64,7 +68,8 @@ vi.mock("@/server/db", () => ({
           if (text.includes("FROM student_slots")) return [fixed.map((r) => ({ ...r })), []];
           if (text.startsWith("SELECT start_time FROM lessons"))
             return [lessonRows.map((r) => ({ start_time: r.start_time })), []];
-          if (text.startsWith("SELECT id FROM lessons WHERE owner_id = ? AND student_id"))
+          if (text.startsWith("SELECT id FROM lessons WHERE owner_id = ? AND student_id")) {
+            if (staleSnapshotDates.has(String(params[2]))) return [[], []];
             return [
               lessonRows.some(
                 (r) =>
@@ -76,6 +81,7 @@ vi.mock("@/server/db", () => ({
                 : [],
               [],
             ];
+          }
           if (text.startsWith("SELECT COUNT(*)")) {
             const key = String(params[1]);
             const n = lessonRows.filter((r) => `${r.lesson_date}#${r.start_time}` === key).length;
@@ -84,6 +90,9 @@ vi.mock("@/server/db", () => ({
           if (text.startsWith("INSERT INTO lessons")) {
             if (failInsertAt !== null && lessonRows.length + 1 >= failInsertAt) {
               throw Object.assign(new Error("boom"), { code: "ER_TEST" });
+            }
+            if (duplicateInsertDates.has(String(params[2]))) {
+              throw Object.assign(new Error("duplicate"), { code: "ER_DUP_ENTRY" });
             }
             lessonRows.push({
               student_id: String(params[4]),
@@ -143,6 +152,8 @@ beforeEach(() => {
   fixed = [];
   lessonRows = [];
   failInsertAt = null;
+  staleSnapshotDates = new Set<string>();
+  duplicateInsertDates = new Set<string>();
   lifecycle.getConnections = 0;
   lifecycle.begins = 0;
   lifecycle.commits = 0;
@@ -218,6 +229,22 @@ describe("saving the hours: idempotence and monotonic marker", () => {
 
     expect(again.created).toBe(0);
     expect(lessonRows.some((r) => r.lesson_date === "2026-11-06")).toBe(false);
+  });
+
+  it("treats an occurrence committed after its snapshot as already booked", async () => {
+    fixed = [{ id: "s1", name: "Beto", weekday: 5, start_time: "17:00", last_generated: null }];
+    // A concurrent save committed 2026-11-06 between our consistent read and our
+    // insert: the plain existence check cannot see it, the unique key does.
+    lessonRows.push({ student_id: "s1", lesson_date: "2026-11-06", start_time: "17:00" });
+    staleSnapshotDates = new Set(["2026-11-06"]);
+    duplicateInsertDates = new Set(["2026-11-06"]);
+
+    const result = await save(day);
+
+    expect(result.created).toBe(3);
+    expect(lifecycle.commits).toBe(1);
+    expect(lifecycle.rollbacks).toBe(0);
+    expect(fixed[0]!.last_generated).toBe("2026-11-20");
   });
 });
 

@@ -601,11 +601,17 @@ async function materializeOn(
         break;
       }
 
-      await connection.execute(
-        "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
-        [randomUUID(), ownerId, date, time, slot.id],
-      );
-      created += 1;
+      try {
+        await connection.execute(
+          "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
+          [randomUUID(), ownerId, date, time, slot.id],
+        );
+        created += 1;
+      } catch (error) {
+        // A concurrent transaction committed this occurrence after our snapshot:
+        // the unique key caught it, so the class is already booked, not a failure.
+        if ((error as { code?: string }).code !== "ER_DUP_ENTRY") throw error;
+      }
       resolved = date;
     }
 

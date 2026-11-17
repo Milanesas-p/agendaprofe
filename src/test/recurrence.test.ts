@@ -23,6 +23,8 @@ describe("nextOccurrences", () => {
   it("returns nothing for an empty or inverted window", () => {
     expect(nextOccurrences(FRIDAY, PLUS_4_WEEKS, WEDNESDAY_2026_10_28)).toEqual([]);
     expect(nextOccurrences(FRIDAY, "2026-10-31", "2026-10-30")).toEqual([]);
+    // A date-shaped value that is not a real calendar day cannot book anything.
+    expect(nextOccurrences(FRIDAY, "2026-13-40", PLUS_4_WEEKS)).toEqual([]);
   });
 
   it("returns nothing for a weekday that does not exist", () => {
@@ -64,5 +66,18 @@ describe("datesToGenerate", () => {
     const generated = datesToGenerate(FRIDAY, null, WEDNESDAY_2026_10_28);
     expect(generated.at(-1)).toBe("2026-11-20");
     expect(generated.every((d) => d <= PLUS_4_WEEKS)).toBe(true);
+  });
+
+  it("treats an unusable marker as no marker, never booking past dates", () => {
+    // The column is a MySQL DATE read with `dateStrings`, so this cannot arrive
+    // from the database; the fallback is pinned so a hand-made value stays safe.
+    expect(datesToGenerate(FRIDAY, "not-a-date", WEDNESDAY_2026_10_28)).toEqual(
+      datesToGenerate(FRIDAY, null, WEDNESDAY_2026_10_28),
+    );
+    expect(
+      datesToGenerate(FRIDAY, "2026-13-40", WEDNESDAY_2026_10_28).every(
+        (d) => d > WEDNESDAY_2026_10_28,
+      ),
+    ).toBe(true);
   });
 });

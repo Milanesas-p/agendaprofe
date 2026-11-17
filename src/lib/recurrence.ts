@@ -23,6 +23,16 @@ const parse = (iso: string): Date => new Date(`${iso}T00:00:00Z`);
 
 const toIso = (date: Date): string => date.toISOString().slice(0, 10);
 
+/**
+ * A real calendar date in `YYYY-MM-DD` form. The pattern alone accepts values
+ * like `2026-13-40`, which would throw while generating occurrences.
+ */
+const isIsoDate = (value: string): boolean => {
+  if (!DATE.test(value)) return false;
+  const parsed = parse(value);
+  return !Number.isNaN(parsed.getTime()) && toIso(parsed) === value;
+};
+
 const validWeekday = (weekday: number): boolean =>
   Number.isInteger(weekday) && weekday >= 0 && weekday <= 6;
 
@@ -35,7 +45,7 @@ export function addIsoDays(iso: string, days: number): string {
 
 /** Every date inside `[fromISO, untilISO]` that falls on `weekday`, inclusive. */
 export function nextOccurrences(weekday: number, fromISO: string, untilISO: string): string[] {
-  if (!validWeekday(weekday) || !DATE.test(fromISO) || !DATE.test(untilISO)) return [];
+  if (!validWeekday(weekday) || !isIsoDate(fromISO) || !isIsoDate(untilISO)) return [];
   if (fromISO > untilISO) return [];
 
   const out: string[] = [];
@@ -64,11 +74,14 @@ export function datesToGenerate(
   lastGeneratedISO: string | null,
   todayISO: string,
 ): string[] {
-  if (!validWeekday(weekday) || !DATE.test(todayISO)) return [];
+  if (!validWeekday(weekday) || !isIsoDate(todayISO)) return [];
 
-  const from = lastGeneratedISO && DATE.test(lastGeneratedISO)
-    ? (addIsoDays(lastGeneratedISO, 1) > todayISO ? addIsoDays(lastGeneratedISO, 1) : todayISO)
-    : todayISO;
+  const from =
+    lastGeneratedISO && isIsoDate(lastGeneratedISO)
+      ? addIsoDays(lastGeneratedISO, 1) > todayISO
+        ? addIsoDays(lastGeneratedISO, 1)
+        : todayISO
+      : todayISO;
 
   return nextOccurrences(weekday, from, addIsoDays(todayISO, HORIZON_DAYS));
 }
