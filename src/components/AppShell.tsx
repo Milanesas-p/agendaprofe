@@ -1,5 +1,6 @@
 import { Account } from "@/components/Account";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { ThemePrompt } from "@/components/ThemePrompt";
 import { initTheme } from "@/lib/theme";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Link, Outlet } from "@tanstack/react-router";
@@ -69,6 +70,7 @@ export function AppShell() {
     <div className="flex min-h-dvh bg-background">
       <DesktopSidebar />
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col lg:mx-0 lg:max-w-none lg:flex-1">
+        <ThemePrompt />
         <Account />
         <main className="flex-1 pb-28 lg:pb-12">
           <div className="lg:mx-auto lg:w-full lg:max-w-6xl">

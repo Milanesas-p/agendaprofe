@@ -14,7 +14,7 @@ import { useStore } from "@/lib/store";
  * which control the bubble is talking about.
  */
 
-type Step = { target: string; title: string; text: string };
+type Step = { target: string | null; title: string; text: string };
 
 const STEPS: Step[] = [
   {
@@ -37,6 +37,11 @@ const STEPS: Step[] = [
     title: "Tus alumnos",
     text: "El directorio: saldo, perfil y horario fijo de cada uno. También podés importarlos desde una lista.",
   },
+  {
+    target: null,
+    title: "Eso es todo",
+    text: "Llegaste al final de este breve tutorial. Podés volver a verlo cuando quieras desde Configuración, con el botón Ver el tutorial.",
+  },
 ];
 
 type Hole = { top: number; left: number; width: number; height: number };
@@ -47,15 +52,18 @@ const PAD = 8;
 const DIM = "0 0 0 100vmax color-mix(in oklab, var(--foreground) 55%, transparent)";
 
 export function Tour() {
-  const { user, finishTour, busy } = useStore();
+  const { user, finishTour, busy, tourRequested } = useStore();
   const [index, setIndex] = useState(0);
   const [hole, setHole] = useState<Hole | null>(null);
 
-  const open = Boolean(user) && user?.tourDone === false;
+  const open = Boolean(user) && (user?.tourDone === false || Boolean(tourRequested));
   const step = STEPS[index];
 
   useEffect(() => {
-    if (!open || !step) return;
+    if (!open || !step?.target) {
+      setHole(null);
+      return;
+    }
     setHole(null);
     let frame = 0;
     let stopped = false;
@@ -71,7 +79,11 @@ export function Tour() {
         height: rect.height + PAD * 2,
       };
       setHole((prev) =>
-        prev && prev.top === next.top && prev.left === next.left && prev.width === next.width && prev.height === next.height
+        prev &&
+        prev.top === next.top &&
+        prev.left === next.left &&
+        prev.width === next.width &&
+        prev.height === next.height
           ? prev
           : next,
       );
@@ -108,13 +120,24 @@ export function Tour() {
   const atTop = hole ? hole.top + hole.height / 2 > window.innerHeight / 2 : false;
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Tour de bienvenida" className="fixed inset-0 z-50">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Tour de bienvenida"
+      className="fixed inset-0 z-50"
+    >
       {hole ? (
         <div
           aria-hidden
           data-tour-spotlight
           className="pointer-events-none absolute rounded-2xl ring-2 ring-court"
-          style={{ top: hole.top, left: hole.left, width: hole.width, height: hole.height, boxShadow: DIM }}
+          style={{
+            top: hole.top,
+            left: hole.left,
+            width: hole.width,
+            height: hole.height,
+            boxShadow: DIM,
+          }}
         />
       ) : (
         // Before the anchor exists (or between steps) the veil alone keeps the
@@ -130,11 +153,16 @@ export function Tour() {
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground">{step.title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{step.text}</p>
         <div className="mt-3 flex items-center justify-between gap-2">
-          <Button variant="ghost" disabled={busy} onClick={() => void finishTour()} className="h-11 px-2 text-muted-foreground">
+          <Button
+            variant="ghost"
+            disabled={busy}
+            onClick={() => void finishTour()}
+            className="h-11 px-2 text-muted-foreground"
+          >
             Saltear
           </Button>
           <Button disabled={busy} onClick={advance} className="h-11 px-5">
-            {last ? "Entendido" : "Siguiente"}
+            {last ? "Listo" : "Siguiente"}
           </Button>
         </div>
       </div>

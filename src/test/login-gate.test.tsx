@@ -24,7 +24,9 @@ vi.mock("@/lib/store", async (importOriginal) => ({
 vi.mock("@tanstack/react-router", () => ({
   Outlet: () => null,
   Link: ({ to, activeOptions: _activeOptions, children, ...rest }: Record<string, unknown>) => (
-    <a href={String(to)} {...rest}>{children as React.ReactNode}</a>
+    <a href={String(to)} {...rest}>
+      {children as React.ReactNode}
+    </a>
   ),
   useNavigate: () => navigate,
 }));
@@ -37,6 +39,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   store.user = null;
   store.loading = false;
+  // This gate is about session routing; the device already picked a theme, so the
+  // first-run modal does not hide the shell from the accessibility tree.
+  localStorage.setItem("ppm-theme", "light");
 });
 afterEach(cleanup);
 

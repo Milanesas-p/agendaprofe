@@ -67,6 +67,8 @@ export type Lesson = {
   status: ClassStatus;
   /** True once the teacher sent this class' WhatsApp reminder. */
   notified: boolean;
+  /** Original slot when the teacher moved it, or null. */
+  movedFrom?: { date: string; start: string } | null;
 };
 export type Settings = {
   startHour: number;
@@ -78,12 +80,17 @@ export type Settings = {
   /** Bulk notice template, or null for the factory one. */
   noticeTemplate: string | null;
 };
-export const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-export const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+export const iso = (d: Date) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+export const addDays = (d: Date, n: number) => {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+};
 export function applyStatus(lesson: Lesson, student: Student, next: ClassStatus): Student {
   return { ...student, balance: student.balance + balanceDelta(lesson.status, next) };
 }
-export const balanceLabel = (b: number) => b > 0 ? `+${b}` : `${b}`;
+export const balanceLabel = (b: number) => (b > 0 ? `+${b}` : `${b}`);
 
 type State = { students: Student[]; lessons: Lesson[]; settings: Settings };
 type Ctx = State & {
@@ -97,7 +104,10 @@ type Ctx = State & {
   setNotified: (id: string, notified: boolean) => Promise<boolean>;
   addLesson: (l: Omit<Lesson, "id" | "status" | "notified">) => Promise<boolean>;
   addStudent: (s: Omit<Student, "id">) => Promise<string | false>;
-  updateStudent: (id: string, s: Pick<Student, "name" | "type" | "pay" | "phone" | "category" | "courtSide" | "slots">) => Promise<boolean>;
+  updateStudent: (
+    id: string,
+    s: Pick<Student, "name" | "type" | "pay" | "phone" | "category" | "courtSide" | "slots">,
+  ) => Promise<boolean>;
   adjustBalance: (id: string, delta: number) => Promise<boolean>;
   moveLesson: (id: string, target: { date: string; start: string }) => Promise<boolean>;
   setSettings: (s: Settings) => Promise<boolean>;
@@ -106,12 +116,22 @@ type Ctx = State & {
   updateProfile: (name: string) => Promise<boolean>;
   /** Closes the welcome tour and remembers it for this account. */
   finishTour: () => Promise<boolean>;
+  /** Reopens the tour from Configuración without touching the saved flag. */
+  startTour: () => void;
+  tourRequested: boolean;
 };
 
 const empty: State = {
   students: [],
   lessons: [],
-  settings: { startHour: 8, endHour: 22, blockMin: 60, breakStart: null, breakEnd: null, noticeTemplate: null },
+  settings: {
+    startHour: 8,
+    endHour: 22,
+    blockMin: 60,
+    breakStart: null,
+    breakEnd: null,
+    noticeTemplate: null,
+  },
 };
 const C = createContext<Ctx | null>(null);
 
@@ -150,6 +170,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [tourRequested, setTourRequested] = useState(false);
   const mutationLock = useRef(false);
 
   async function refresh() {
@@ -160,14 +181,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     getCurrentUser()
-      .then((current) => { if (active) setUser(current); })
-      .catch(() => { if (active) setUser(null); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+      .then((current) => {
+        if (active) setUser(current);
+      })
+      .catch(() => {
+        if (active) setUser(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (!user) { setSt(empty); return; }
+    if (!user) {
+      setSt(empty);
+      return;
+    }
     let active = true;
     setLoading(true);
     (async () => {
@@ -187,12 +219,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (active) setLoading(false);
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [user?.id]);
 
   /** Serializes mutations, refreshes afterwards, and turns errors into toasts. */
   async function commit<T>(work: () => Promise<T>, fallback: string): Promise<T | false> {
-    if (!user) { toast.error("Iniciá sesión para guardar tus cambios."); return false; }
+    if (!user) {
+      toast.error("Iniciá sesión para guardar tus cambios.");
+      return false;
+    }
     if (mutationLock.current) return false;
     mutationLock.current = true;
     setBusy(true);
@@ -231,53 +268,97 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut(): Promise<void> {
-    try { await logoutUser(); } catch { /* the local session is cleared either way */ }
+    try {
+      await logoutUser();
+    } catch {
+      /* the local session is cleared either way */
+    }
     setUser(null);
     setSt(empty);
   }
 
   const ctx: Ctx = {
-    ...st, user, loading, busy, signIn, signOut,
-    setStatus: (id, status) => changed(() => setLessonStatusFn({ data: { id, status } }), "No se pudo guardar el cambio."),
-    setNotified: (id, notified) => changed(() => setLessonNotifiedFn({ data: { id, notified } }), "No se pudo guardar el aviso."),
+    ...st,
+    user,
+    loading,
+    busy,
+    signIn,
+    signOut,
+    setStatus: (id, status) =>
+      changed(() => setLessonStatusFn({ data: { id, status } }), "No se pudo guardar el cambio."),
+    setNotified: (id, notified) =>
+      changed(
+        () => setLessonNotifiedFn({ data: { id, notified } }),
+        "No se pudo guardar el aviso.",
+      ),
     addLesson: async (l) => {
-      if (!slots(st.settings).includes(l.start)) { toast.error("Horario fuera de los bloques configurados."); return false; }
-      return changed(() => addLessonFn({ data: { date: l.date, start: l.start, studentId: l.studentId } }), "No se pudo reservar la clase.");
+      if (!slots(st.settings).includes(l.start)) {
+        toast.error("Horario fuera de los bloques configurados.");
+        return false;
+      }
+      return changed(
+        () => addLessonFn({ data: { date: l.date, start: l.start, studentId: l.studentId } }),
+        "No se pudo reservar la clase.",
+      );
     },
     addStudent: async (s) => {
-      const result = await commit(
-        async () => {
-          const id = await addStudentFn({ data: { name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, category: s.category, courtSide: s.courtSide, slots: s.slots, balance: s.balance } });
-          if (s.type === "fijo" && s.slots.length > 0) await afterScheduleChange();
-          return id;
-        },
-        "No se pudo guardar el alumno.",
-      );
+      const result = await commit(async () => {
+        const id = await addStudentFn({
+          data: {
+            name: s.name.trim(),
+            type: s.type,
+            pay: s.pay,
+            phone: s.phone,
+            category: s.category,
+            courtSide: s.courtSide,
+            slots: s.slots,
+            balance: s.balance,
+          },
+        });
+        if (s.type === "fijo" && s.slots.length > 0) await afterScheduleChange();
+        return id;
+      }, "No se pudo guardar el alumno.");
       return typeof result === "string" ? result : false;
     },
     updateStudent: (id, s) =>
       changed(async () => {
-        await updateStudentFn({ data: { id, name: s.name.trim(), type: s.type, pay: s.pay, phone: s.phone, category: s.category, courtSide: s.courtSide, slots: s.slots } });
+        await updateStudentFn({
+          data: {
+            id,
+            name: s.name.trim(),
+            type: s.type,
+            pay: s.pay,
+            phone: s.phone,
+            category: s.category,
+            courtSide: s.courtSide,
+            slots: s.slots,
+          },
+        });
         if (s.type === "fijo" && s.slots.length > 0) await afterScheduleChange();
       }, "No se pudo guardar el alumno."),
     adjustBalance: (id, delta) =>
       changed(() => adjustBalanceFn({ data: { id, delta } }), "No se pudo ajustar el saldo."),
     importStudents: async (rows) => {
       if (rows.length === 0) return false;
-      const count = await commit(
-        async () => {
-          const total = await importStudentsFn({ data: { students: rows } });
-          if (rows.some((r) => r.type === "fijo" && r.slots.length > 0)) await afterScheduleChange();
-          return total;
-        },
-        "No se pudieron importar los alumnos.",
-      );
+      const count = await commit(async () => {
+        const total = await importStudentsFn({ data: { students: rows } });
+        if (rows.some((r) => r.type === "fijo" && r.slots.length > 0)) await afterScheduleChange();
+        return total;
+      }, "No se pudieron importar los alumnos.");
       return typeof count === "number" ? count : false;
     },
     setNoticeTemplate: (template) =>
-      changed(() => saveNoticeTemplateFn({ data: { template } }), "No se pudo guardar la plantilla del aviso."),
+      changed(
+        () => saveNoticeTemplateFn({ data: { template } }),
+        "No se pudo guardar la plantilla del aviso.",
+      ),
     moveLesson: (id, target) =>
-      changed(() => moveLessonFn({ data: { id, date: target.date, start: target.start } }), "No se pudo mover la clase."),
+      changed(
+        () => moveLessonFn({ data: { id, date: target.date, start: target.start } }),
+        "No se pudo mover la clase.",
+      ),
+    startTour: () => setTourRequested(true),
+    tourRequested,
     finishTour: async () => {
       if (!user) return false;
       let saved = true;
@@ -290,10 +371,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // The tour closes either way: never trap the teacher inside it because a
       // request failed.
       setUser({ ...user, tourDone: true });
+      setTourRequested(false);
       return saved;
     },
     updateProfile: async (name) => {
-      if (!user) { toast.error("Iniciá sesión para guardar tus cambios."); return false; }
+      if (!user) {
+        toast.error("Iniciá sesión para guardar tus cambios.");
+        return false;
+      }
       setBusy(true);
       try {
         await updateProfileFn({ data: { name } });
@@ -338,4 +423,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return <C.Provider value={ctx}>{children}</C.Provider>;
 }
 
-export function useStore() { const c = useContext(C); if (!c) throw new Error("StoreProvider missing"); return c; }
+export function useStore() {
+  const c = useContext(C);
+  if (!c) throw new Error("StoreProvider missing");
+  return c;
+}

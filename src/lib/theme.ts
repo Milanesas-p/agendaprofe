@@ -4,6 +4,7 @@
  */
 
 const KEY = "ppm-theme";
+const CHANGE_EVENT = "ppm-theme-change";
 
 export type Theme = "light" | "dark";
 
@@ -22,6 +23,27 @@ export function applyTheme(theme: Theme): void {
     localStorage.setItem(KEY, theme);
   } catch {
     // Private mode: the theme still applies for this session.
+  }
+  try {
+    window.dispatchEvent(new Event(CHANGE_EVENT));
+  } catch {
+    // No window (server render): nothing to notify.
+  }
+}
+
+/** Notifies every mounted control (the account bar, the prompt) that the theme changed. */
+export function onThemeChange(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(CHANGE_EVENT, listener);
+  return () => window.removeEventListener(CHANGE_EVENT, listener);
+}
+
+/** True once this device has a saved choice, so the first-run prompt asks only once. */
+export function hasThemePreference(): boolean {
+  try {
+    return localStorage.getItem(KEY) !== null;
+  } catch {
+    return true;
   }
 }
 

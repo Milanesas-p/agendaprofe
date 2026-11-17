@@ -4,13 +4,24 @@ import { Route } from "@/routes/configuracion";
 
 const { store, navigate } = vi.hoisted(() => ({
   store: {
-    user: { id: "u1", email: "profe@padel.com", name: "Genaro Stocco" } as { id: string; email: string; name: string | null },
-    settings: { startHour: 8, endHour: 17, blockMin: 60, breakStart: null as number | null, breakEnd: null as number | null },
+    user: { id: "u1", email: "profe@padel.com", name: "Genaro Stocco" } as {
+      id: string;
+      email: string;
+      name: string | null;
+    },
+    settings: {
+      startHour: 8,
+      endHour: 17,
+      blockMin: 60,
+      breakStart: null as number | null,
+      breakEnd: null as number | null,
+    },
     busy: false,
     loading: false,
     setSettings: vi.fn(),
     updateProfile: vi.fn(),
     signOut: vi.fn(),
+    startTour: vi.fn(),
   },
   navigate: vi.fn(),
 }));
@@ -24,11 +35,22 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   useNavigate: () => navigate,
 }));
 vi.mock("@/server/data", () => ({
-  getSnapshot: vi.fn(), addStudent: vi.fn(), updateStudent: vi.fn(), addLesson: vi.fn(),
-  adjustBalance: vi.fn(), setLessonStatus: vi.fn(), saveSettings: vi.fn(),
-  materializeRecurring: vi.fn(), moveLesson: vi.fn(), updateProfile: vi.fn(),
+  getSnapshot: vi.fn(),
+  addStudent: vi.fn(),
+  updateStudent: vi.fn(),
+  addLesson: vi.fn(),
+  adjustBalance: vi.fn(),
+  setLessonStatus: vi.fn(),
+  saveSettings: vi.fn(),
+  materializeRecurring: vi.fn(),
+  moveLesson: vi.fn(),
+  updateProfile: vi.fn(),
 }));
-vi.mock("@/server/auth", () => ({ getCurrentUser: vi.fn(), loginUser: vi.fn(), logoutUser: vi.fn() }));
+vi.mock("@/server/auth", () => ({
+  getCurrentUser: vi.fn(),
+  loginUser: vi.fn(),
+  logoutUser: vi.fn(),
+}));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 function renderPage() {
@@ -85,8 +107,19 @@ describe("settings screen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar horarios" }));
 
     await waitFor(() =>
-      expect(store.setSettings).toHaveBeenCalledWith(expect.objectContaining({ breakStart: null, breakEnd: null })),
+      expect(store.setSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ breakStart: null, breakEnd: null }),
+      ),
     );
+  });
+
+  it("reopens the welcome tour from the settings screen", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver el tutorial" }));
+
+    expect(store.startTour).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: "/" }));
   });
 
   it("switches the app to the dark theme", () => {

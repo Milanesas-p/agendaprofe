@@ -13,6 +13,7 @@ const { store } = vi.hoisted(() => ({
     },
     busy: false,
     finishTour: vi.fn(),
+    tourRequested: false,
   },
 }));
 
@@ -49,22 +50,34 @@ describe("welcome tour", () => {
   it("starts on the first bubble when the account never finished it", () => {
     render(<Tour />);
 
-    expect(screen.getByText("1 de 4")).toBeTruthy();
+    expect(screen.getByText("1 de 5")).toBeTruthy();
     expect(screen.getByText("Elegí el día")).toBeTruthy();
   });
 
-  it("walks the four bubbles and closes on the last one", () => {
+  it("walks the five bubbles and closes on the last one", () => {
     render(<Tour />);
 
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
-    expect(screen.getByText("2 de 4")).toBeTruthy();
+    expect(screen.getByText("2 de 5")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
 
-    expect(screen.getByText("4 de 4")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Entendido" }));
+    expect(screen.getByText("5 de 5")).toBeTruthy();
+    expect(screen.getByText(/Llegaste al final de este breve tutorial/)).toBeTruthy();
+    expect(screen.getByText(/desde Configuración/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Listo" }));
 
     expect(store.finishTour).toHaveBeenCalledTimes(1);
+  });
+
+  it("reopens on request even after the account finished it", () => {
+    store.user = { id: "u1", email: "profe@example.com", name: "Genaro", tourDone: true };
+    store.tourRequested = true;
+    render(<Tour />);
+
+    expect(screen.getByText("1 de 5")).toBeTruthy();
+    store.tourRequested = false;
   });
 
   it("lets the teacher skip it from any bubble", () => {
@@ -118,7 +131,7 @@ describe("welcome tour", () => {
     render(<Tour />);
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
 
-    const card = screen.getByText("2 de 4").parentElement as HTMLElement;
+    const card = screen.getByText("2 de 5").parentElement as HTMLElement;
     expect(card.className).toContain("top-4");
     expect(card.className).not.toContain("bottom-24");
     add.remove();
