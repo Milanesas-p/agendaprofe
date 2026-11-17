@@ -22,6 +22,7 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
+  const [forgot, setForgot] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +42,7 @@ export function LoginScreen() {
     <div className="min-h-dvh bg-background text-foreground lg:grid lg:grid-cols-[1.05fr_1fr]">
       <section className="relative h-44 overflow-hidden lg:h-auto lg:min-h-dvh">
         <img
-          src="/padel-court.jpg"
+          src="/padel-court-centered.jpg"
           alt=""
           className="absolute inset-0 h-full w-full object-cover object-center"
         />
@@ -95,6 +96,43 @@ export function LoginScreen() {
                 className="account-input"
               />
             </label>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                aria-expanded={forgot}
+                aria-controls="password-recovery"
+                onClick={() => setForgot((open) => !open)}
+                className="text-xs font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
+            {forgot && (
+              <div
+                id="password-recovery"
+                className="rounded-xl border border-border bg-muted/40 p-3"
+              >
+                <p className="text-sm font-semibold">La contraseña la renueva la administración.</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Escribinos por WhatsApp con el correo de tu cuenta. Te pasamos una contraseña
+                  nueva y se cierran todas las sesiones abiertas.
+                </p>
+                <a
+                  href={`https://wa.me/${CONTACT_PHONE}?text=${encodeURIComponent(
+                    `Hola, olvidé la contraseña de Pádel Pro.${email.trim() ? ` Mi correo es ${email.trim()}.` : ""}`,
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Pedir una nueva
+                </a>
+                <p className="mt-2 text-[11px] font-semibold text-muted-foreground">
+                  WhatsApp +54 9 2302 666351
+                </p>
+              </div>
+            )}
             {message && (
               <p role="status" className="text-sm">
                 {message}
@@ -123,6 +161,18 @@ export function LoginScreen() {
               Contactate
             </a>
           </section>
+
+          <p className="mt-4 text-center text-[10px] text-muted-foreground">
+            Icono de raqueta:{" "}
+            <a
+              href="https://www.flaticon.es/icono-gratis/raqueta-de-padel_6769801"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              Flaticon
+            </a>
+          </p>
         </div>
       </main>
     </div>
