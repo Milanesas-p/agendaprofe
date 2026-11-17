@@ -76,7 +76,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, interactive-widget=resizes-content" },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1, interactive-widget=resizes-content",
+      },
       { title: "Pádel Pro — Clases y alumnos" },
       { name: "description", content: "Agenda, asistencia y saldos de clases de pádel." },
       { property: "og:title", content: "Pádel Pro — Clases y alumnos" },
@@ -89,7 +92,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
+      { rel: "icon", type: "image/png", sizes: "16x16", href: "/icon-16.png" },
+      { rel: "icon", type: "image/png", sizes: "32x32", href: "/icon-32.png" },
+      { rel: "icon", type: "image/png", sizes: "192x192", href: "/icon-192.png" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -123,7 +130,9 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider><AppShell /></StoreProvider>
+      <StoreProvider>
+        <AppShell />
+      </StoreProvider>
       <Toaster richColors position="top-center" />
     </QueryClientProvider>
   );

@@ -1,4 +1,5 @@
 import { Account } from "@/components/Account";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import { initTheme } from "@/lib/theme";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Link, Outlet } from "@tanstack/react-router";
@@ -21,7 +22,9 @@ function DesktopSidebar() {
   return (
     <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-card lg:flex">
       <div className="px-6 pb-5 pt-6">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pádel Pro</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Pádel Pro
+        </p>
         <p className="text-xl font-semibold tracking-tight text-foreground">Clases y alumnos</p>
       </div>
       <nav aria-label="Navegación lateral" className="flex-1 overflow-y-auto px-3">
@@ -58,11 +61,7 @@ export function AppShell() {
 
   // Login is the only entry point: nothing of the app renders without a session.
   if (loading) {
-    return (
-      <div className="mx-auto flex min-h-dvh max-w-md items-center justify-center bg-background text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-        Cargando…
-      </div>
-    );
+    return <LoadingScreen />;
   }
   if (!user) return <LoginScreen />;
 
@@ -138,7 +137,11 @@ export function PageHeader({
       }`}
     >
       <div className="min-w-0">
-        {sub && <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{sub}</p>}
+        {sub && (
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {sub}
+          </p>
+        )}
         <h1 className="truncate text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
       </div>
       {right}
