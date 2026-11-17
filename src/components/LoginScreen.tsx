@@ -161,18 +161,6 @@ export function LoginScreen() {
               Contactate
             </a>
           </section>
-
-          <p className="mt-4 text-center text-[10px] text-muted-foreground">
-            Icono de raqueta:{" "}
-            <a
-              href="https://www.flaticon.es/icono-gratis/raqueta-de-padel_6769801"
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2"
-            >
-              Flaticon
-            </a>
-          </p>
         </div>
       </main>
     </div>
