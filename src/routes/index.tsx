@@ -23,6 +23,7 @@ import { profileLabel } from "@/lib/player";
 import { Tour } from "@/components/Tour";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { reminderText, whatsappLink } from "@/lib/whatsapp";
+import { historyDayLabel, studentHistory } from "@/lib/history";
 import { sameDayHint, suggestionReason, suggestionsFor, type Suggestion } from "@/lib/suggestions";
 
 export const Route = createFileRoute("/")({
@@ -61,6 +62,15 @@ const statusDot: Record<Lesson["status"], string> = {
   presente: "bg-court",
   ausente: "bg-destructive",
   cancelada: "bg-muted-foreground/30",
+};
+
+/** How the history reads each row: the teacher's words, not the database ones. */
+const statusLabel: Record<Lesson["status"], string> = {
+  programada: "Programada",
+  confirmado: "Va",
+  presente: "Presente",
+  ausente: "Ausente",
+  cancelada: "Cancelada",
 };
 
 /** Everything the teacher may want to know before acting on a student. */
@@ -537,6 +547,9 @@ function Agenda() {
               {studentDetail(actingStudent)}
             </p>
           )}
+          {actingStudent && !moving && (
+            <StudentHistoryPanel studentId={actingStudent.id} lessons={lessons} today={today} />
+          )}
           {moving ? (
             <div className="space-y-3">
               <label className="block text-sm font-semibold">
@@ -711,6 +724,67 @@ function DaySummary({ lessons, blocks }: { lessons: Lesson[]; blocks: string[] }
  * One suggestion: who, why, and a single tap to book them. It appears both in an
  * open block and in the booking sheet, so the markup lives in one place.
  */
+/**
+ * What this student has actually done in the last months, in the profile sheet.
+ *
+ * The teacher opens the sheet when something needs checking: a debt, a class that
+ * looks moved, a student who stopped coming. A short list of past classes with the
+ * outcome answers that at a glance, and it never replaces the day view.
+ */
+function StudentHistoryPanel({
+  studentId,
+  lessons,
+  today,
+}: {
+  studentId: string;
+  lessons: Lesson[];
+  today: string;
+}) {
+  const { counts, entries, hidden } = studentHistory({ lessons, studentId, todayISO: today });
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+  return (
+    <section
+      aria-label="Historial de clases"
+      className="mb-4 rounded-xl border border-border/60 bg-muted/30 px-2 py-2"
+    >
+      <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Historial
+      </p>
+      {entries.length === 0 ? (
+        <p className="px-1 text-xs font-medium text-muted-foreground">Sin clases anteriores.</p>
+      ) : (
+        <>
+          <p className="px-1 pb-1 text-[11px] font-semibold text-foreground">
+            {count(counts.present, "presente", "presentes")} ·{" "}
+            {count(counts.absent, "ausente", "ausentes")} ·{" "}
+            {count(counts.cancelled, "cancelada", "canceladas")}
+          </p>
+          <ul>
+            {entries.map((entry) => (
+              <li key={entry.id} className="flex items-center justify-between gap-2 px-1 py-0.5">
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  {historyDayLabel(entry.date)} · {entry.start}
+                </span>
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusStyle[entry.status]}`}
+                >
+                  {statusLabel[entry.status]}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {hidden > 0 && (
+            <p className="px-1 pt-1 text-[10px] font-medium text-muted-foreground">
+              +{hidden} anteriores
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function SuggestionRow({
   suggestion,
   busy,
