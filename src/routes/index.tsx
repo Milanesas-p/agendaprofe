@@ -23,7 +23,7 @@ import { profileLabel } from "@/lib/player";
 import { Tour } from "@/components/Tour";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { reminderText, whatsappLink } from "@/lib/whatsapp";
-import { suggestionReason, suggestionsFor, type Suggestion } from "@/lib/suggestions";
+import { sameDayHint, suggestionReason, suggestionsFor, type Suggestion } from "@/lib/suggestions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -148,8 +148,8 @@ function Agenda() {
   const alreadyIn = adding
     ? new Set(dayLessons.filter((l) => l.start === adding).map((l) => l.studentId))
     : new Set<string>();
-  // Planning ahead: a rotativo who already played this weekday and time is the
-  // strongest candidate for the empty seat. Past days get no suggestions.
+  // Planning ahead: whoever already played this weekday and time is the strongest
+  // candidate for the empty seat, fixed or rotating. Past days get no suggestions.
   const today = iso(new Date());
   const suggestionsOf = (slotDate: string, slotStart: string) =>
     suggestionsFor({ date: slotDate, start: slotStart, students, lessons, todayISO: today });
@@ -720,6 +720,7 @@ function SuggestionRow({
   busy: boolean;
   onAdd: () => void;
 }) {
+  const hint = sameDayHint(suggestion);
   return (
     <div className="flex items-center justify-between gap-2 px-1 py-1">
       <span className="min-w-0 flex-1">
@@ -729,6 +730,9 @@ function SuggestionRow({
         <span className="block truncate text-[11px] font-medium text-muted-foreground">
           {suggestionReason(suggestion)}
         </span>
+        {hint && (
+          <span className="block truncate text-[11px] font-semibold text-amber-600">{hint}</span>
+        )}
       </span>
       <Button
         variant="ghost"
