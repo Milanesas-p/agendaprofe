@@ -6,6 +6,7 @@ import {
   isXlsxBytes,
   readStudentsWorkbook,
   rowsToTsv,
+  scheduleCells,
   unzip,
   weekdayLabel,
   WEEKDAY_OPTIONS,
@@ -52,13 +53,19 @@ describe("students workbook", () => {
       "F2:F201",
       "G2:G201",
       "H2:H201",
+      "I2:I201",
+      "J2:J201",
     ]);
     expect(lists["C2:C201"]).toBe('"fijo,rotativo"');
     expect(lists["D2:D201"]).toBe('"Mensual,Pago individual,Paga grupal"');
-    expect(lists["E2:E201"]).toBe('"1ra,2da,3ra,4ta,5ta,6ta firme,6ta,7ma firme,7ma,8va firme,8va"');
+    expect(lists["E2:E201"]).toBe(
+      '"1ra,2da,3ra,4ta,5ta,6ta firme,6ta,7ma firme,7ma,8va firme,8va"',
+    );
     expect(lists["F2:F201"]).toBe('"Drive,Revés,Indistinto"');
     expect(lists["G2:G201"]).toBe('"lunes,martes,miércoles,jueves,viernes,sábado,domingo"');
     expect(lists["H2:H201"]).toBe('"08:00,09:00,14:00"');
+    expect(lists["I2:I201"]).toBe('"lunes,martes,miércoles,jueves,viernes,sábado,domingo"');
+    expect(lists["J2:J201"]).toBe('"08:00,09:00,14:00"');
   });
 
   it("marks the data columns as text so times and categories stay as typed", async () => {
@@ -83,19 +90,23 @@ describe("students workbook", () => {
     );
 
     expect(validations(xml).map(([ref]) => ref)).not.toContain("H2:H201");
-    expect(validations(xml)).toHaveLength(5);
+    expect(validations(xml).map(([ref]) => ref)).not.toContain("J2:J201");
+    expect(validations(xml)).toHaveLength(6);
   });
 
   it("leaves the hora column free when no blocks are configured", async () => {
     const xml = await part(await buildStudentsWorkbook({ slots: [] }), "xl/worksheets/sheet1.xml");
 
     expect(validations(xml).map(([ref]) => ref)).not.toContain("H2:H201");
+    expect(validations(xml).map(([ref]) => ref)).not.toContain("J2:J201");
   });
 
   it("round trips a completed sheet into the student parser", async () => {
     const bytes = await buildStudentsWorkbook({
       slots: SLOTS,
-      rows: [["Maxi Salas", "2302666351", "fijo", "mensual", "8va", "Revés", "lunes", "14:00"]],
+      rows: [
+        ["Maxi Salas", "2302666351", "fijo", "mensual", "8va", "Revés", "lunes", "14:00", "", ""],
+      ],
     });
     const report = parseStudents(rowsToTsv(await readStudentsWorkbook(bytes)), {
       allowedSlots: SLOTS,
@@ -118,12 +129,85 @@ describe("students workbook", () => {
     const id = "11111111-1111-4111-8111-111111111111";
     const bytes = await buildStudentsWorkbook({
       slots: SLOTS,
-      rows: [["Maxi Salas", "2302666351", "fijo", "mensual", "8va", "Revés", "lunes", "14:00", id]],
+      rows: [
+        [
+          "Maxi Salas",
+          "2302666351",
+          "fijo",
+          "mensual",
+          "8va",
+          "Revés",
+          "lunes",
+          "14:00",
+          "",
+          "",
+          id,
+        ],
+      ],
     });
     const rows = await readStudentsWorkbook(bytes);
 
     expect(rows[0]?.at(-1)).toBe("id");
     expect(rows[1]?.at(-1)).toBe(id);
+  });
+
+  it("writes the second weekly slot in its own pair of cells", () => {
+    expect(
+      scheduleCells([
+        { weekday: 2, time: "08:00" },
+        { weekday: 4, time: "16:00" },
+      ]),
+    ).toEqual({ dia: "martes", hora: "08:00", dia2: "jueves", hora2: "16:00" });
+
+    expect(scheduleCells([{ weekday: 1, time: "14:00" }])).toEqual({
+      dia: "lunes",
+      hora: "14:00",
+      dia2: "",
+      hora2: "",
+    });
+    expect(scheduleCells([])).toEqual({ dia: "", hora: "", dia2: "", hora2: "" });
+  });
+
+  it("keeps every slot of a student who goes more than two days", () => {
+    const cells = scheduleCells([
+      { weekday: 2, time: "08:00" },
+      { weekday: 4, time: "16:00" },
+      { weekday: 6, time: "10:00" },
+    ]);
+
+    expect(cells.dia).toBe("martes");
+    expect(cells.hora).toBe("08:00");
+    expect(cells.dia2).toBe("jueves y sábado");
+    expect(cells.hora2).toBe("jueves 16:00 - sábado 10:00");
+  });
+
+  it("round trips a student who goes two days", async () => {
+    const bytes = await buildStudentsWorkbook({
+      slots: SLOTS,
+      rows: [
+        [
+          "Maxi Salas",
+          "2302666351",
+          "fijo",
+          "mensual",
+          "8va",
+          "Revés",
+          "martes",
+          "08:00",
+          "jueves",
+          "14:00",
+        ],
+      ],
+    });
+    const report = parseStudents(rowsToTsv(await readStudentsWorkbook(bytes)), {
+      allowedSlots: SLOTS,
+    });
+
+    expect(report.error).toBeNull();
+    expect(report.rows[0]?.slots).toEqual([
+      { weekday: 2, time: "08:00" },
+      { weekday: 4, time: "14:00" },
+    ]);
   });
 });
 

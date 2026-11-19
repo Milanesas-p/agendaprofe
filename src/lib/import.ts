@@ -41,7 +41,19 @@ export type ImportReport = {
 export const HEADER_ERROR = "La primera fila tiene que traer los títulos de las columnas.";
 
 /** Columns of the downloadable template, in the order the screen lists them. */
-export const TEMPLATE_COLUMNS = ["nombre", "telefono", "tipo", "pago", "categoria", "posicion", "dia", "hora", "id"] as const;
+export const TEMPLATE_COLUMNS = [
+  "nombre",
+  "telefono",
+  "tipo",
+  "pago",
+  "categoria",
+  "posicion",
+  "dia",
+  "hora",
+  "dia 2",
+  "hora 2",
+  "id",
+] as const;
 export type TemplateColumn = (typeof TEMPLATE_COLUMNS)[number];
 
 /** The shape the server stores for a student id, shared by both sides. */
@@ -58,7 +70,18 @@ export function decodeImportFile(buffer: ArrayBuffer): string {
   return utf8.includes("\uFFFD") ? strip(new TextDecoder("windows-1252").decode(buffer)) : utf8;
 }
 
-type Column = "nombre" | "telefono" | "tipo" | "pago" | "categoria" | "posicion" | "dia" | "hora" | "id";
+type Column =
+  | "nombre"
+  | "telefono"
+  | "tipo"
+  | "pago"
+  | "categoria"
+  | "posicion"
+  | "dia"
+  | "hora"
+  | "dia2"
+  | "hora2"
+  | "id";
 
 /** Every accepted heading, already normalized (no accents, lowercase). */
 const HEADINGS: Record<Column, readonly string[]> = {
@@ -70,6 +93,8 @@ const HEADINGS: Record<Column, readonly string[]> = {
   posicion: ["posicion", "lado", "cancha"],
   dia: ["dia", "dia fijo", "semana"],
   hora: ["hora", "horario"],
+  dia2: ["dia 2", "dia2", "segundo dia"],
+  hora2: ["hora 2", "hora2", "segundo horario"],
   id: ["id"],
 };
 
@@ -126,7 +151,9 @@ function dayOf(token: string, allowDigits: boolean): number | null {
 
 /** Every day the `dia` cell names: "Martes y viernes", "lun/mie", "3". */
 function daysOf(value: string): number[] | null {
-  const tokens = fold(value).split(/[\s,;/\-–—]+/).filter(Boolean);
+  const tokens = fold(value)
+    .split(/[\s,;/\-–—]+/)
+    .filter(Boolean);
   const days: number[] = [];
   for (const token of tokens) {
     if (token === "y" || token === "e") continue;
@@ -230,7 +257,8 @@ function slotsFromCells(dia: string, hora: string): { slots: StudentSlot[]; erro
   if (parts === null) return { slots: [], error: `Hora inválida: ${hora}. Usá 8AM, 15hs o HH:MM.` };
 
   if (days.length === 0 && parts.length === 0) return { slots: [], error: null };
-  if (days.length === 0 || parts.length === 0) return { slots: [], error: "El horario fijo necesita día y hora." };
+  if (days.length === 0 || parts.length === 0)
+    return { slots: [], error: "El horario fijo necesita día y hora." };
 
   const explicit = parts.filter((part) => part.day !== null).length;
   let pairs: Array<{ day: number; time: string }>;
@@ -238,7 +266,8 @@ function slotsFromCells(dia: string, hora: string): { slots: StudentSlot[]; erro
     pairs = parts.map((part) => ({ day: part.day!, time: part.time }));
   } else if (explicit === 0) {
     if (parts.length === 1) pairs = days.map((day) => ({ day, time: parts[0]!.time }));
-    else if (parts.length === days.length) pairs = days.map((day, index) => ({ day, time: parts[index]!.time }));
+    else if (parts.length === days.length)
+      pairs = days.map((day, index) => ({ day, time: parts[index]!.time }));
     else return { slots: [], error: "No coinciden los días con las horas." };
   } else {
     return { slots: [], error: "No coinciden los días con las horas." };
@@ -246,7 +275,8 @@ function slotsFromCells(dia: string, hora: string): { slots: StudentSlot[]; erro
 
   const declared = new Set(days);
   for (const pair of pairs) {
-    if (!declared.has(pair.day)) return { slots: [], error: "Los días de la hora no coinciden con la columna día." };
+    if (!declared.has(pair.day))
+      return { slots: [], error: "Los días de la hora no coinciden con la columna día." };
   }
 
   const seen = new Set<string>();
@@ -288,6 +318,8 @@ function readRow(line: number, cells: Cells, allowedSlots: readonly string[]): I
     posicion: cell("posicion"),
     dia: cell("dia"),
     hora: cell("hora"),
+    dia2: cell("dia2"),
+    hora2: cell("hora2"),
     id: cell("id"),
   };
 
@@ -334,22 +366,36 @@ function readRow(line: number, cells: Cells, allowedSlots: readonly string[]): I
 
   if (raw.pago !== "") {
     const pay = payOf(raw.pago);
-    if (!pay) return fail(`Pago inválido: ${raw.pago}. Usá Mensual, Pago individual o Paga grupal.`);
+    if (!pay)
+      return fail(`Pago inválido: ${raw.pago}. Usá Mensual, Pago individual o Paga grupal.`);
     row.pay = pay;
   }
 
+  // Two pairs of cells: the second one is optional and exists so a student who
+  // goes two days does not need the compact notation in a single cell. Each pair
+  // still accepts several days, so nothing is lost when there are more.
   const schedule = slotsFromCells(raw.dia, raw.hora);
   if (schedule.error) return fail(schedule.error);
-  for (const slot of schedule.slots) {
+  const extra = slotsFromCells(raw.dia2, raw.hora2);
+  if (extra.error) return fail(`Segundo horario: ${extra.error}`);
+
+  const slots: StudentSlot[] = [...schedule.slots];
+  for (const slot of extra.slots) {
+    if (!slots.some((known) => known.weekday === slot.weekday && known.time === slot.time)) {
+      slots.push(slot);
+    }
+  }
+  for (const slot of slots) {
     if (allowedSlots.length > 0 && !allowedSlots.includes(slot.time)) {
       return fail(`El horario ${slot.time} no está entre tus bloques.`);
     }
   }
-  row.slots = schedule.slots;
+  row.slots = slots;
 
   if (raw.tipo !== "") {
     const type = fold(raw.tipo);
-    if (type !== "fijo" && type !== "rotativo") return fail(`Tipo inválido: ${raw.tipo}. Usá fijo o rotativo.`);
+    if (type !== "fijo" && type !== "rotativo")
+      return fail(`Tipo inválido: ${raw.tipo}. Usá fijo o rotativo.`);
     row.type = type;
   }
   // No `tipo` means the student is not fixed, even when the sheet names a usual day
@@ -396,10 +442,14 @@ export function parseStudents(
     }
     const row = readRow(number, values, allowedSlots);
     if (row.id === null) return row;
-    if (seen.has(row.id)) return { ...row, error: row.error ?? "Este alumno está repetido en la plantilla." };
+    if (seen.has(row.id))
+      return { ...row, error: row.error ?? "Este alumno está repetido en la plantilla." };
     seen.add(row.id);
     if (knownIds && !knownIds.has(row.id)) {
-      return { ...row, error: row.error ?? "Ese alumno ya no existe. Volvé a descargar la plantilla." };
+      return {
+        ...row,
+        error: row.error ?? "Ese alumno ya no existe. Volvé a descargar la plantilla.",
+      };
     }
     return row;
   });

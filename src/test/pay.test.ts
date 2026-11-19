@@ -46,6 +46,8 @@ describe("payment modes through the sheet", () => {
       "",
       "",
       "",
+      "",
+      "",
       `11111111-1111-4111-8${index}11-111111111111`,
     ]);
     const report = parseStudents(
@@ -57,7 +59,21 @@ describe("payment modes through the sheet", () => {
   });
 
   it("keeps a blank payment blank instead of guessing mensual", async () => {
-    const rows = [["Alumno sin pago", "", "fijo", "", "", "", "", "", "11111111-1111-4111-8111-111111111111"]];
+    const rows = [
+      [
+        "Alumno sin pago",
+        "",
+        "fijo",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "11111111-1111-4111-8111-111111111111",
+      ],
+    ];
     const report = parseStudents(
       rowsToTsv(await readStudentsWorkbook(await buildStudentsWorkbook({ slots: [], rows }))),
       { allowedSlots: [] },

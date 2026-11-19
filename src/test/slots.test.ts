@@ -13,31 +13,40 @@ const SLOTS = ["08:00", "09:00", "11:00", "12:00"];
 
 describe("scheduleCells", () => {
   it("returns empty cells when the student has no slots", () => {
-    expect(scheduleCells([])).toEqual({ dia: "", hora: "" });
+    expect(scheduleCells([])).toEqual({ dia: "", hora: "", dia2: "", hora2: "" });
   });
 
-  it("joins the days that share one time", () => {
-    expect(scheduleCells([{ weekday: 2, time: "09:00" }, { weekday: 5, time: "09:00" }])).toEqual({
-      dia: "martes y viernes",
-      hora: "09:00",
-    });
+  it("puts the second day in its own pair, even when both days share one time", () => {
+    expect(
+      scheduleCells([
+        { weekday: 2, time: "09:00" },
+        { weekday: 5, time: "09:00" },
+      ]),
+    ).toEqual({ dia: "martes", hora: "09:00", dia2: "viernes", hora2: "09:00" });
   });
 
-  it("writes one time per day when they differ", () => {
-    expect(scheduleCells([{ weekday: 2, time: "11:00" }, { weekday: 6, time: "12:00" }])).toEqual({
-      dia: "martes y sábado",
-      hora: "martes 11:00 - sábado 12:00",
-    });
+  it("keeps one day and one time per pair when they differ", () => {
+    expect(
+      scheduleCells([
+        { weekday: 2, time: "11:00" },
+        { weekday: 6, time: "12:00" },
+      ]),
+    ).toEqual({ dia: "martes", hora: "11:00", dia2: "sábado", hora2: "12:00" });
   });
 
   it("round-trips several slots through the sheet", async () => {
-    const slots = [{ weekday: 2, time: "11:00" }, { weekday: 6, time: "12:00" }];
-    const { dia, hora } = scheduleCells(slots);
+    const slots = [
+      { weekday: 2, time: "11:00" },
+      { weekday: 6, time: "12:00" },
+    ];
+    const { dia, hora, dia2, hora2 } = scheduleCells(slots);
     const bytes = await buildStudentsWorkbook({
       slots: SLOTS,
-      rows: [["A", "", "fijo", "", "", "", dia, hora, ""]],
+      rows: [["A", "", "fijo", "", "", "", dia, hora, dia2, hora2, ""]],
     });
-    const report = parseStudents(rowsToTsv(await readStudentsWorkbook(bytes)), { allowedSlots: SLOTS });
+    const report = parseStudents(rowsToTsv(await readStudentsWorkbook(bytes)), {
+      allowedSlots: SLOTS,
+    });
 
     expect(report.rows[0]?.slots).toEqual(slots);
   });

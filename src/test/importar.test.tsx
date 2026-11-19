@@ -135,6 +135,8 @@ describe("import page", () => {
       "Revés",
       "lunes",
       "14:00",
+      "",
+      "",
       maxi.id,
     ]);
   });
@@ -184,7 +186,7 @@ describe("import page", () => {
     store.students = [maxi];
     const bytes = await buildStudentsWorkbook({
       slots: ["14:00"],
-      rows: [["Maxi Salas", "5492302666351", "fijo", "mensual", "8va", "Revés", "lunes", "14:00", maxi.id]],
+      rows: [["Maxi Salas", "5492302666351", "fijo", "mensual", "8va", "Revés", "lunes", "14:00", "", "", maxi.id]],
     });
     renderPage();
     const file = new File([bytes], "plantilla-alumnos.xlsx", { type: SHEET_MIME });

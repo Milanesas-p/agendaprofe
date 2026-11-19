@@ -304,3 +304,54 @@ describe("reading the teacher's own notation", () => {
     expect(report.rows[0]?.error).toBe("Día inválido: martes y vir.");
   });
 });
+describe("the second slot pair", () => {
+  const header = "nombre,tipo,dia,hora,dia 2,hora 2";
+
+  it("reads the two days from their own columns", () => {
+    const report = parseStudents(`${header}\nFernanda,fijo,martes,8AM,jueves,16:00\n`, {
+      allowedSlots: ["08:00", "16:00"],
+    });
+
+    expect(report.rows[0]?.slots).toEqual([
+      { weekday: 2, time: "08:00" },
+      { weekday: 4, time: "16:00" },
+    ]);
+    expect(report.rows[0]?.error).toBeNull();
+  });
+
+  it("still reads a sheet without the second pair", () => {
+    const report = parseStudents("nombre,dia,hora\nA,lunes,9hs\n", { allowedSlots: ["09:00"] });
+
+    expect(report.rows[0]?.slots).toEqual([{ weekday: 1, time: "09:00" }]);
+  });
+
+  it("asks for both cells when the second pair is half filled", () => {
+    const withoutTime = parseStudents(`${header}\nA,fijo,lunes,9hs,jueves,\n`, {
+      allowedSlots: ["09:00"],
+    });
+    const withoutDay = parseStudents(`${header}\nA,fijo,lunes,9hs,,16:00\n`, {
+      allowedSlots: ["09:00", "16:00"],
+    });
+
+    expect(withoutTime.rows[0]?.error).toBe(
+      "Segundo horario: El horario fijo necesita día y hora.",
+    );
+    expect(withoutDay.rows[0]?.error).toBe("Segundo horario: El horario fijo necesita día y hora.");
+  });
+
+  it("does not duplicate a slot written in both pairs", () => {
+    const report = parseStudents(`${header}\nA,fijo,lunes,9hs,lunes,9hs\n`, {
+      allowedSlots: ["09:00"],
+    });
+
+    expect(report.rows[0]?.slots).toEqual([{ weekday: 1, time: "09:00" }]);
+  });
+
+  it("checks the second pair against the configured blocks too", () => {
+    const report = parseStudents(`${header}\nA,fijo,lunes,9hs,jueves,16:00\n`, {
+      allowedSlots: ["09:00"],
+    });
+
+    expect(report.rows[0]?.error).toBe("El horario 16:00 no está entre tus bloques.");
+  });
+});

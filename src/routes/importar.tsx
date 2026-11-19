@@ -25,8 +25,8 @@ export const Route = createFileRoute("/importar")({
 });
 
 const PLACEHOLDER = [
-  "nombre\ttelefono\ttipo\tpago\tcategoria\tposicion\tdia\thora",
-  "Maxi Salas\t2302666351\tfijo\tmensual\t8va\treves\tlunes\t14:00",
+  "nombre\ttelefono\ttipo\tpago\tcategoria\tposicion\tdia\thora\tdia 2\thora 2",
+  "Maxi Salas\t2302666351\tfijo\tmensual\t8va\treves\tmartes\t08:00\tjueves\t14:00",
 ].join("\n");
 
 function Importar() {
@@ -60,7 +60,7 @@ function Importar() {
   async function downloadTemplate() {
     try {
       const rows = students.map((student) => {
-        const { dia, hora } = scheduleCells(student.slots);
+        const { dia, hora, dia2, hora2 } = scheduleCells(student.slots);
         return [
           student.name,
           student.phone ?? "",
@@ -70,6 +70,8 @@ function Importar() {
           student.courtSide ? courtSideLabel(student.courtSide) : "",
           dia,
           hora,
+          dia2,
+          hora2,
           student.id,
         ];
       });
@@ -157,7 +159,9 @@ function Importar() {
             />
           </label>
           <p className="mt-2 text-xs text-muted-foreground">
-            Descargá la plantilla .xlsx: viene con tus alumnos para editarlos y con desplegables en tipo, pago, categoría, posición, día y hora. Subila tal cual; también podés subir un CSV o pegar las filas desde Excel o Sheets. La columna
+            Descargá la plantilla .xlsx: viene con tus alumnos para editarlos y con desplegables en tipo, pago, categoría, posición, día y hora. Para el alumno que va dos días, completá la segunda pareja de columnas,
+            <span className="font-semibold text-foreground"> día 2</span> y
+            <span className="font-semibold text-foreground"> hora 2</span>; si va uno solo, dejá esas dos vacías. Subila tal cual; también podés subir un CSV o pegar las filas desde Excel o Sheets. La columna
             <span className="font-semibold text-foreground"> id</span> no se toca: identifica al alumno para actualizarlo. Para sumar uno nuevo, agregá una fila con el id vacío; si borrás una fila, el alumno no se elimina.
           </p>
         </section>

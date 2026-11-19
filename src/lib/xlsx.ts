@@ -47,24 +47,45 @@ export function weekdayLabel(day: number): string {
 }
 
 /**
- * The `dia`/`hora` cells for a student with any number of weekly slots, using the
- * teacher's own notation: "Martes y viernes" plus either one time or one per day
- * ("martes 11hs - sab 12hs"), so a downloaded sheet imports back unchanged.
+ * Days and times of a group of slots, using the teacher's own notation:
+ * "Martes y viernes" plus either one time or one per day ("martes 11hs - sab 12hs").
+ * The parser reads this back unchanged.
  */
-export function scheduleCells(slots: readonly StudentSlot[]): { dia: string; hora: string } {
+function pairCells(slots: readonly StudentSlot[]): { dia: string; hora: string } {
   if (slots.length === 0) return { dia: "", hora: "" };
 
   const ordered = [...slots].sort((a, b) => a.weekday - b.weekday || a.time.localeCompare(b.time));
   const days = [...new Set(ordered.map((slot) => slot.weekday))].map((day) => weekdayLabel(day));
   const times = new Set(ordered.map((slot) => slot.time));
-  const hora = times.size === 1
-    ? ordered[0]!.time
-    : ordered.map((slot) => `${weekdayLabel(slot.weekday)} ${slot.time}`).join(" - ");
+  const hora =
+    times.size === 1
+      ? ordered[0]!.time
+      : ordered.map((slot) => `${weekdayLabel(slot.weekday)} ${slot.time}`).join(" - ");
   return { dia: days.join(" y "), hora };
 }
 
+/**
+ * The four schedule cells of one student: `dia`/`hora` plus the optional
+ * `dia 2`/`hora 2` pair, so a student who goes two days is filled in without any
+ * compact notation. A third day and beyond still fits in the second pair, which
+ * accepts the same "day time - day time" shape.
+ */
+export function scheduleCells(slots: readonly StudentSlot[]): {
+  dia: string;
+  hora: string;
+  dia2: string;
+  hora2: string;
+} {
+  if (slots.length === 0) return { dia: "", hora: "", dia2: "", hora2: "" };
+
+  const ordered = [...slots].sort((a, b) => a.weekday - b.weekday || a.time.localeCompare(b.time));
+  const first = pairCells([ordered[0]!]);
+  const rest = pairCells(ordered.slice(1));
+  return { dia: first.dia, hora: first.hora, dia2: rest.dia, hora2: rest.hora };
+}
+
 /** Widths for the template columns, in the same order. */
-const COLUMN_WIDTHS = [30, 16, 12, 12, 12, 14, 14, 10, 38];
+const COLUMN_WIDTHS = [30, 16, 12, 12, 12, 14, 14, 10, 14, 10, 38];
 
 export type StudentsWorkbookOptions = {
   /** Configured blocks offered in the `hora` dropdown; empty leaves it free. */
@@ -118,6 +139,8 @@ function validationsXml(slots: readonly string[]): string {
     ["posicion", SIDE_OPTIONS],
     ["dia", WEEKDAY_OPTIONS],
     ["hora", [...new Set(slots)]],
+    ["dia 2", WEEKDAY_OPTIONS],
+    ["hora 2", [...new Set(slots)]],
   ];
 
   const rules: string[] = [];
@@ -126,6 +149,7 @@ function validationsXml(slots: readonly string[]): string {
     const formula = `"${values.join(",")}"`;
     if (formula.length > 255) continue;
     const index = columns.indexOf(column);
+    if (index < 0) continue;
     const ref = `${columnLetter(index)}2:${columnLetter(index)}${LAST_ROW}`;
     rules.push(
       `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="${ref}"><formula1>${xml(formula)}</formula1></dataValidation>`,
