@@ -1,0 +1,1 @@
+var e=[`1ra`,`2da`,`3ra`,`4ta`,`5ta`,`6ta firme`,`6ta`,`7ma firme`,`7ma`,`8va firme`,`8va`],t=[`drive`,`reves`,`indistinto`],n=e=>e===`reves`?`Revés`:e===`drive`?`Drive`:`Indistinto`,r=e=>[e.category,e.courtSide?n(e.courtSide):null].filter(Boolean).join(` · `);export{r as i,t as n,n as r,e as t};

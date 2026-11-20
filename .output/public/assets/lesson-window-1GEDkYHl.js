@@ -1,0 +1,1 @@
+var e=`Tomadas y ausencias de los últimos 6 meses.`;function t(e){return r(e,-180)}function n(e){return r(e,120)}function r(e,t){let n=new Date(e);return n.setDate(n.getDate()+t),`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,`0`)}-${String(n.getDate()).padStart(2,`0`)}`}export{n,t as r,e as t};
