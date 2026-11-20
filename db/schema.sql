@@ -83,7 +83,14 @@ CREATE TABLE student_slots (
   UNIQUE KEY student_slots_unique (owner_id, student_id, weekday, start_time),
   KEY student_slots_owner (owner_id),
   CONSTRAINT student_slots_weekday CHECK (weekday BETWEEN 0 AND 6),
-  CONSTRAINT student_slots_time CHECK (start_time REGEXP '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
+  -- Spelled with string functions: MySQL 8.0 refuses REGEXP (regexp_like) inside a
+  -- CHECK constraint, which made the dump impossible to import on the hosting.
+  CONSTRAINT student_slots_time CHECK (
+    CHAR_LENGTH(start_time) = 5
+    AND SUBSTR(start_time, 1, 2) BETWEEN '00' AND '23'
+    AND SUBSTR(start_time, 3, 1) = ':'
+    AND SUBSTR(start_time, 4, 2) BETWEEN '00' AND '59'
+  ),
   CONSTRAINT student_slots_student_fk FOREIGN KEY (student_id, owner_id)
     REFERENCES students (id, owner_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -112,7 +119,12 @@ CREATE TABLE lessons (
   -- slot_key, so they never collide.
   UNIQUE KEY one_active_student_slot (owner_id, slot_key, student_id),
   KEY lessons_owner_date (owner_id, lesson_date),
-  CONSTRAINT lessons_start_fmt CHECK (start_time REGEXP '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
+  CONSTRAINT lessons_start_fmt CHECK (
+    CHAR_LENGTH(start_time) = 5
+    AND SUBSTR(start_time, 1, 2) BETWEEN '00' AND '23'
+    AND SUBSTR(start_time, 3, 1) = ':'
+    AND SUBSTR(start_time, 4, 2) BETWEEN '00' AND '59'
+  ),
   CONSTRAINT lessons_status CHECK (status IN ('programada', 'confirmado', 'presente', 'ausente', 'cancelada')),
   CONSTRAINT lessons_student_fk FOREIGN KEY (student_id, owner_id)
     REFERENCES students (id, owner_id) ON DELETE CASCADE
