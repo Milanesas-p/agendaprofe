@@ -20,10 +20,10 @@ Branch: `migracion-node-mysql`. Runner: `npm test` (Vitest). Entrega: commits po
 
 | ID | Tarea | Spec | Ruta | Estado |
 | --- | --- | --- | --- | --- |
-| T1 | Esquema `role`/`active` + `AuthUser.role` + login y sesión respetan `active` | S1, S2, S10 | inline | pendiente |
-| T2 | `src/server/admin.ts`: `requireAdmin`, listado, alta, reset, suspender/reactivar | S3-S7 | inline | pendiente |
-| T3 | Ruta `/admin` + UI + enlace de navegación solo para admin | S3, S7 | inline | pendiente |
-| T4 | Script `make-admin` + README | S9 | inline | pendiente |
+| T1 | Esquema `role`/`active` + `AuthUser.role` + login y sesión respetan `active` | S1, S2, S10 | inline | hecho (`10ac8b4`) |
+| T2 | `src/server/admin.ts`: `requireAdmin`, listado, alta, reset, suspender/reactivar | S3-S7 | inline | hecho (`434e780`) |
+| T3 | Ruta `/admin` + UI + enlace de navegación solo para admin | S3, S7 | inline | hecho (`d6806f9`) |
+| T4 | Script `make-admin` + README | S9 | inline | hecho (`3c773b6`) |
 
 Forecast: ~650 líneas autoradas (código + tests + docs). Estrategia de entrega: `ask-on-risk`.
 
@@ -38,3 +38,12 @@ Forecast: ~650 líneas autoradas (código + tests + docs). Estrategia de entrega
 > "1"
 
 Contexto: la opción 1 es rol admin en la cuenta propia, no una pantalla con clave aparte. Hoy las cuentas solo se crean y resetean por consola (`npm run create-account`, `npm run reset-password`) y `users` no tiene rol ni estado.
+### L2 — implementación (2026-11-20)
+
+- T1: migración 2026-11-20-users-role-active.sql aplicada a la base local; indSessionUser filtra u.active = 1 y devuelve ole; el login corta antes de verificar la clave con Esta cuenta está suspendida.
+- T2: src/server/admin.ts con equireAdmin() en cada endpoint. Listado con alumnos, clases de los últimos 30 días y último ingreso (MAX(sessions.created_at), aproximado porque el logout borra la fila).
+- T3: /admin + entrada en la barra lateral y acceso desde Configuración, ambos solo para admin. La página se cierra sin llamar al servidor si el rol no es admin.
+- T4: 
+pm run make-admin -- <email>; genaro.stocco195@gmail.com quedó como admin en la base local.
+- Verificación: 434 tests; build de producción compila; migración aplicada a mano a padel.
+- Pendiente operativo: aplicar la migración en phpMyAdmin de producción ANTES de subir el build (el login nuevo consulta ctive y ole).
