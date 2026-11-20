@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, LogOut, Moon, Sun } from "lucide-react";
+import { ArrowLeft, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore, slots, type Settings } from "@/lib/store";
 import { validSettings } from "@/lib/rules";
@@ -139,6 +139,16 @@ function Configuracion() {
               Salir
             </Button>
           </div>
+          {user?.role === "admin" && (
+            <Button
+              variant="outline"
+              onClick={() => navigate({ to: "/admin" })}
+              className="mt-2 h-11 w-full"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Panel de profesores
+            </Button>
+          )}
         </Section>
 
         <Section title="Horarios de trabajo">

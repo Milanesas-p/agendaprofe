@@ -4,22 +4,32 @@ import { ThemePrompt } from "@/components/ThemePrompt";
 import { initTheme } from "@/lib/theme";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Link, Outlet } from "@tanstack/react-router";
-import { BarChart3, Bell, CalendarDays, Plus, Settings, Users } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, Plus, Settings, ShieldCheck, Users } from "lucide-react";
 import { useStore } from "@/lib/store";
 
 // Before the first paint: a dark session never flashes the light theme.
 initTheme();
 
+type NavItem = {
+  to: "/" | "/alumnos" | "/avisos" | "/resumen" | "/configuracion" | "/admin";
+  label: string;
+  icon: typeof CalendarDays;
+  exact: boolean;
+};
+
 // One source for both navigations: the desktop sidebar and the mobile tab bar.
-const NAV_ITEMS = [
+const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Agenda", icon: CalendarDays, exact: true },
   { to: "/alumnos", label: "Alumnos", icon: Users, exact: true },
   { to: "/avisos", label: "Avisos", icon: Bell, exact: true },
   { to: "/resumen", label: "Resumen", icon: BarChart3, exact: true },
   { to: "/configuracion", label: "Configuración", icon: Settings, exact: true },
-] as const;
+];
 
-function DesktopSidebar() {
+// Only an admin gets here; the server refuses the panel to everyone else.
+const ADMIN_ITEM: NavItem = { to: "/admin", label: "Profesores", icon: ShieldCheck, exact: true };
+
+function DesktopSidebar({ items }: { items: NavItem[] }) {
   return (
     <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-card lg:flex">
       <div className="px-6 pb-5 pt-6">
@@ -30,7 +40,7 @@ function DesktopSidebar() {
       </div>
       <nav aria-label="Navegación lateral" className="flex-1 overflow-y-auto px-3">
         <ul className="space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {items.map((item) => (
             <li key={item.to}>
               <Link
                 to={item.to}
@@ -68,7 +78,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-dvh bg-background">
-      <DesktopSidebar />
+      <DesktopSidebar items={user.role === "admin" ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS} />
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col lg:mx-0 lg:max-w-none lg:flex-1">
         <ThemePrompt />
         <Account />
