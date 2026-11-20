@@ -20,7 +20,10 @@ export default defineConfig({
     // Points TanStack Start's server entry at src/server.ts (the SSR error wrapper).
     tanstackStart({ server: { entry: "server" } }),
     // Local Node server. The previous wrapper forced the Cloudflare Workers preset.
-    nitro({ preset: "node-server" }),
+    // `inlineDynamicImports` keeps the SSR bundle in one file: splitting it per
+    // package produced a cycle where the CJS helper (`__commonJSMin`) was still
+    // uninitialized when a radix chunk used it, so the server 500ed at boot.
+    nitro({ preset: "node-server", rollupConfig: { output: { inlineDynamicImports: true } } }),
     viteReact(),
   ],
   // The "@/*" alias comes from tsconfig.json paths.
