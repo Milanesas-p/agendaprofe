@@ -505,8 +505,8 @@ export const addLesson = createServerFn({ method: "POST" })
         // The composite FK (student_id, owner_id) rejects a student from another
         // owner; the unique key rejects the same student twice in this slot.
         await connection.execute(
-          "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
-          [id, ownerId, data.date, data.start, data.studentId],
+          "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id, slot_key) VALUES (?, ?, ?, ?, ?, ?)",
+          [id, ownerId, data.date, data.start, data.studentId, slotKey],
         );
       } catch (error) {
         if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
@@ -535,11 +535,14 @@ export const setLessonStatus = createServerFn({ method: "POST" })
       if (!row) throw new Error("Esa clase no existe.");
 
       const delta = balanceDelta(row.status, data.status);
-      await connection.execute("UPDATE lessons SET status = ? WHERE id = ? AND owner_id = ?", [
-        data.status,
-        data.id,
-        ownerId,
-      ]);
+      // The slot key is written here instead of coming from a generated column:
+      // MariaDB rejects conditional expressions in GENERATED ALWAYS AS (IF and CASE
+      // both fail with error 1901). A cancelled class stores NULL so the unique key
+      // (owner, slot_key, student) only guards active bookings.
+      await connection.execute(
+        "UPDATE lessons SET status = ?, slot_key = CASE WHEN ? = 'cancelada' THEN NULL ELSE CONCAT(lesson_date, '#', start_time) END WHERE id = ? AND owner_id = ?",
+        [data.status, data.status, data.id, ownerId],
+      );
       if (delta !== 0) {
         await connection.execute(
           "UPDATE students SET balance = balance + ? WHERE id = ? AND owner_id = ?",
@@ -657,8 +660,8 @@ async function materializeOn(
 
       try {
         await connection.execute(
-          "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id) VALUES (?, ?, ?, ?, ?)",
-          [randomUUID(), ownerId, date, time, slot.id],
+          "INSERT INTO lessons (id, owner_id, lesson_date, start_time, student_id, slot_key) VALUES (?, ?, ?, ?, ?, ?)",
+          [randomUUID(), ownerId, date, time, slot.id, `${date}#${time}`],
         );
         created += 1;
       } catch (error) {
@@ -748,13 +751,15 @@ export const moveLesson = createServerFn({ method: "POST" })
         throw new Error("Ese alumno ya está en ese horario.");
 
       // MySQL applies the assignments left to right, so the origin is captured
-      // before the new date and time overwrite it.
+      // before the new date and time overwrite it. The slot key follows the new
+      // slot: it is maintained by the app, since MariaDB cannot compute it.
       await connection.execute(
         `UPDATE lessons
             SET moved_from_date = lesson_date, moved_from_start = start_time,
-                lesson_date = ?, start_time = ?, notified_at = NULL
+                lesson_date = ?, start_time = ?, slot_key = CONCAT(?, '#', ?),
+                notified_at = NULL
           WHERE id = ? AND owner_id = ?`,
-        [data.date, data.start, data.id, ownerId],
+        [data.date, data.start, data.date, data.start, data.id, ownerId],
       );
     });
   });

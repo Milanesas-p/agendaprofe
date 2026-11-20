@@ -44,10 +44,13 @@ vi.mock("@/server/db", () => ({
 
 vi.mock("@/server/session-user", () => ({ findSessionUser }));
 
-const { addLesson, moveLesson, materializeRecurring } = (await import("@/server/data")) as unknown as {
+const { addLesson, moveLesson, materializeRecurring, setLessonStatus } = (await import(
+  "@/server/data"
+)) as unknown as {
   addLesson: { _handler: (args: { data: unknown }) => Promise<string> };
   moveLesson: { _handler: (args: { data: unknown }) => Promise<void> };
   materializeRecurring: { _handler: () => Promise<unknown> };
+  setLessonStatus: { _handler: (args: { data: unknown }) => Promise<void> };
 };
 
 const book = (studentId = "11111111-1111-1111-1111-111111111111") =>
@@ -243,5 +246,69 @@ describe("transaction isolation", () => {
 
     expect(calls[0]).toContain("REPEATABLE READ");
     expect(calls[1]).toBe("BEGIN");
+  });
+});
+
+/**
+ * The app writes `slot_key` itself: MariaDB refuses conditional expressions in a
+ * generated column, so the database can no longer compute it. The invariant is the
+ * same one the unique key relies on: an active row carries `date#time`, a cancelled
+ * row carries NULL.
+ */
+describe("slot key is written by the app", () => {
+  const insertParams = () => {
+    const call = connectionExecute.mock.calls.find(([sql]) => String(sql).startsWith("INSERT INTO lessons"));
+    return (call?.[1] ?? []) as unknown[];
+  };
+
+  it("stores date#time when booking a class", async () => {
+    connectionExecute.mockResolvedValueOnce([[{ n: 0 }], []]);
+    await book();
+
+    expect(String(connectionExecute.mock.calls.find(([sql]) => String(sql).startsWith("INSERT INTO lessons"))?.[0])).toContain(
+      "slot_key",
+    );
+    expect(insertParams()[5]).toBe("2026-11-02#09:00");
+  });
+
+  it("frees the slot when the class is cancelled", async () => {
+    connectionExecute
+      .mockResolvedValueOnce([[{ status: "programada", student_id: "student-1" }], []])
+      .mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+
+    await setLessonStatus._handler({ data: { id: "33333333-3333-3333-3333-333333333333", status: "cancelada" } });
+
+    const update = connectionExecute.mock.calls.find(([sql]) => String(sql).startsWith("UPDATE lessons SET status"));
+    expect(String(update?.[0])).toContain("slot_key = CASE WHEN ? = 'cancelada' THEN NULL");
+    expect((update?.[1] as unknown[])[1]).toBe("cancelada");
+  });
+
+  it("keeps the slot occupied for any other status", async () => {
+    connectionExecute
+      .mockResolvedValueOnce([[{ status: "confirmado", student_id: "student-1" }], []])
+      .mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+
+    await setLessonStatus._handler({ data: { id: "33333333-3333-3333-3333-333333333333", status: "presente" } });
+
+    const update = connectionExecute.mock.calls.find(([sql]) => String(sql).startsWith("UPDATE lessons SET status"));
+    expect((update?.[1] as unknown[])[1]).toBe("presente");
+  });
+
+  it("moves the slot key to the destination when a class is moved", async () => {
+    connectionExecute
+      .mockResolvedValueOnce([
+        [{ lesson_date: "2026-11-02", start_time: "09:00", student_id: "student-1", status: "programada" }],
+        [],
+      ])
+      .mockResolvedValueOnce([[{ n: 1 }], []])
+      .mockResolvedValueOnce([[], []]);
+
+    await moveLesson._handler({
+      data: { id: "22222222-2222-2222-2222-222222222222", date: "2026-11-03", start: "10:00" },
+    });
+
+    const update = connectionExecute.mock.calls.find(([sql]) => String(sql).includes("slot_key = CONCAT(?, '#', ?)"));
+    expect(String(update?.[0])).toContain("slot_key = CONCAT(?, '#', ?)");
+    expect((update?.[1] as unknown[]).slice(2, 4)).toEqual(["2026-11-03", "10:00"]);
   });
 });

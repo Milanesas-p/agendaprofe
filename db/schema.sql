@@ -1,4 +1,7 @@
--- Pixel Perfect Match — MySQL 8 schema.
+-- Portability note: tables do not pin a collation. MySQL 8 and MariaDB disagree on
+-- the utf8mb4_0900_* names, so each server uses its own utf8mb4 default.
+
+-- Pixel Perfect Match — MySQL 8 / MariaDB schema.
 -- Replaces the Postgres/Supabase schema in drizzle/migrations/0000_padel_students_lessons_settings.sql.
 --
 -- Differences from the Postgres version, on purpose:
@@ -30,7 +33,7 @@ CREATE TABLE users (
   created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY users_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE students (
   id         CHAR(36)     NOT NULL,
@@ -65,7 +68,7 @@ CREATE TABLE students (
     court_side IS NULL OR court_side IN ('drive', 'reves', 'indistinto')
   ),
   CONSTRAINT students_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE student_slots (
   id         CHAR(36)  NOT NULL,
@@ -93,7 +96,7 @@ CREATE TABLE student_slots (
   ),
   CONSTRAINT student_slots_student_fk FOREIGN KEY (student_id, owner_id)
     REFERENCES students (id, owner_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE lessons (
   id          CHAR(36)     NOT NULL,
@@ -108,10 +111,11 @@ CREATE TABLE lessons (
   -- Where the class came from when it was moved; NULL means it never moved.
   moved_from_date  DATE    NULL,
   moved_from_start CHAR(5) NULL,
-  -- NULL when cancelled, so the UNIQUE key below only guards active rows.
-  slot_key    VARCHAR(20)  GENERATED ALWAYS AS (
-    IF(status = 'cancelada', NULL, CONCAT(lesson_date, '#', start_time))
-  ) STORED,
+  -- NULL when cancelled, so the UNIQUE key below only guards active rows. The app
+  -- writes it on every insert, status change and move: MariaDB refuses IF() and CASE
+  -- in a GENERATED ALWAYS AS expression (error 1901), so the database cannot
+  -- compute it. Value format: `YYYY-MM-DD#HH:MM`.
+  slot_key    VARCHAR(20)  NULL,
   created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   -- A slot holds up to MAX_STUDENTS_PER_LESSON students (enforced by the API), and
@@ -128,7 +132,7 @@ CREATE TABLE lessons (
   CONSTRAINT lessons_status CHECK (status IN ('programada', 'confirmado', 'presente', 'ausente', 'cancelada')),
   CONSTRAINT lessons_student_fk FOREIGN KEY (student_id, owner_id)
     REFERENCES students (id, owner_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE court_settings (
   owner_id   CHAR(36) NOT NULL,
@@ -159,7 +163,7 @@ CREATE TABLE court_settings (
         AND break_end > break_start)
   ),
   CONSTRAINT settings_owner_fk FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Opaque session tokens. Only the SHA-256 of the cookie value is stored, so a
 -- database leak does not hand out live sessions.
@@ -173,7 +177,7 @@ CREATE TABLE sessions (
   KEY sessions_user (user_id),
   KEY sessions_expiry (expires_at),
   CONSTRAINT sessions_user_fk FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Housekeeping: expired sessions are already invisible to every query (they all
 -- filter on `expires_at > NOW()`), so this only keeps the table small.
