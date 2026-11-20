@@ -22,6 +22,10 @@ CREATE TABLE users (
   -- Shown in the app header. Set when the account is provisioned or from the
   -- settings screen; the email is still the identity.
   display_name  VARCHAR(120) NULL,
+  -- Only an admin opens the operator panel. Everyone else manages their own students.
+  role          ENUM('profe', 'admin') NOT NULL DEFAULT 'profe',
+  -- 0 parks the account: the login is refused and an open session stops resolving.
+  active        TINYINT(1)   NOT NULL DEFAULT 1,
   -- NULL until the welcome tour is finished or skipped: the tour only shows on
   -- the first sessions of an account.
   tour_done_at  TIMESTAMP    NULL,

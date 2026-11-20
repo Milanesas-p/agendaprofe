@@ -5,7 +5,7 @@ import { LOGIN_WINDOW_MINUTES, nextFailures } from "../lib/login-throttle";
 import { db } from "./db";
 import { verifyPassword } from "./password";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, hashSessionToken, newSessionToken } from "./session";
-import { findSessionUser, type AuthUser } from "./session-user";
+import { findSessionUser, type AuthUser, type Role } from "./session-user";
 
 export type { AuthUser };
 
@@ -18,6 +18,9 @@ type UserRow = {
   password_hash: string;
   tour_done_at: string | null;
   failed_logins: number;
+  /** 0 parks the account: no login and no live session. */
+  active: number;
+  role: Role;
   /** 1 when MySQL says the account is still parked. */
   locked: number;
   /** 1 when the stored streak is older than the window and no longer counts. */
@@ -26,6 +29,7 @@ type UserRow = {
 
 const WRONG_CREDENTIALS = "Correo o contraseña incorrectos.";
 const TOO_MANY_ATTEMPTS = "Demasiados intentos. Esperá unos minutos y volvé a probar.";
+const SUSPENDED = "Esta cuenta está suspendida.";
 
 function readCredentials(input: unknown): Credentials {
   const raw = (input ?? {}) as Record<string, unknown>;
@@ -51,7 +55,7 @@ async function startSession(userId: string): Promise<void> {
  * The lock and the streak age are decided by MySQL's clock: the app and the
  * database do not have to share a timezone for the throttle to be right.
  */
-const READ_USER = `SELECT id, email, display_name, password_hash, tour_done_at,
+const READ_USER = `SELECT id, email, display_name, password_hash, tour_done_at, active, role,
   failed_logins,
   (locked_until IS NOT NULL AND locked_until > NOW()) AS locked,
   (last_failed_at IS NULL OR last_failed_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)) AS stale
@@ -81,13 +85,22 @@ export const loginUser = createServerFn({ method: "POST" })
     const row = (rows as UserRow[])[0];
     // Parked accounts are refused before spending a scrypt verification.
     if (row && Number(row.locked) === 1) throw new Error(TOO_MANY_ATTEMPTS);
+    // A suspended account is refused the same way: no session, no hint about the
+    // password. The operator decided this, so the reason is not hidden.
+    if (row && Number(row.active) === 0) throw new Error(SUSPENDED);
     if (!row || !(await verifyPassword(data.password, row.password_hash))) {
       if (row) await registerFailure(row);
       throw new Error(WRONG_CREDENTIALS);
     }
     await clearFailures(row.id);
     await startSession(row.id);
-    return { id: row.id, email: row.email, name: row.display_name ?? null, tourDone: row.tour_done_at !== null };
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.display_name ?? null,
+      role: row.role,
+      tourDone: row.tour_done_at !== null,
+    };
   });
 
 export const logoutUser = createServerFn({ method: "POST" }).handler(async (): Promise<null> => {
