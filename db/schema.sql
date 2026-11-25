@@ -54,6 +54,9 @@ CREATE TABLE students (
   -- Weekly slots live in student_slots: a student can have several, and only a
   -- `fijo` gets them booked. A `rotativo` keeps them as habitual times.
   balance    INT          NOT NULL DEFAULT 0,
+  -- 0 pauses the student (e.g. summer): no new classes are booked, the schedule
+  -- and history are kept, and enabling books the fixed slots again.
+  active     TINYINT(1)   NOT NULL DEFAULT 1,
   created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   -- Required so lessons can reference (id, owner_id) as a composite foreign key.

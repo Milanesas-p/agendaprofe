@@ -91,7 +91,7 @@ describe("booking from student form", () => {
     chooseLesson();
     fireEvent.click(screen.getByRole("button", { name: "Guardar y reservar" }));
     await waitFor(() => expect(store.addLesson).toHaveBeenCalledWith({ date: "2026-11-02", start: "09:00", studentId: "student-1" }));
-    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: null, phone: null, category: null, courtSide: null, slots: [], balance: 4 });
+    expect(store.addStudent).toHaveBeenCalledWith({ name: "María Pérez", type: "fijo", pay: null, phone: null, category: null, courtSide: null, slots: [], balance: 4, active: true });
   });
   it("retries a failed booking without creating another student", async () => {
     store.addLesson.mockResolvedValueOnce(false).mockResolvedValueOnce(true);

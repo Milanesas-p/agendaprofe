@@ -47,6 +47,8 @@ export type Student = {
   /** Weekly slots. A `fijo` gets them booked; a `rotativo` keeps them habitual. */
   slots: StudentSlot[];
   balance: number;
+  /** False while the student is paused: no new classes are booked. */
+  active: boolean;
 };
 export type ImportedStudent = {
   /** Existing student to update, or null to create a new one. */
@@ -106,7 +108,10 @@ type Ctx = State & {
   addStudent: (s: Omit<Student, "id">) => Promise<string | false>;
   updateStudent: (
     id: string,
-    s: Pick<Student, "name" | "type" | "pay" | "phone" | "category" | "courtSide" | "slots">,
+    s: Pick<
+      Student,
+      "name" | "type" | "pay" | "phone" | "category" | "courtSide" | "slots" | "active"
+    >,
   ) => Promise<boolean>;
   adjustBalance: (id: string, delta: number) => Promise<boolean>;
   moveLesson: (id: string, target: { date: string; start: string }) => Promise<boolean>;
@@ -332,6 +337,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             category: s.category,
             courtSide: s.courtSide,
             slots: s.slots,
+            active: s.active,
           },
         });
         if (s.type === "fijo" && s.slots.length > 0) await afterScheduleChange();

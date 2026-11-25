@@ -93,6 +93,17 @@ describe("importing with existing students", () => {
     expect(statements().some((sql) => sql.includes("INSERT INTO students"))).toBe(false);
   });
 
+  it("never changes the active state of an existing student", async () => {
+    connectionExecute.mockResolvedValueOnce([[{ id: ID }], []]);
+
+    await importStudents._handler({ data: { students: [student({ id: ID })] } });
+
+    const update = connectionExecute.mock.calls.find((call) =>
+      String(call[0]).includes("UPDATE students SET"),
+    );
+    expect(String(update?.[0])).not.toContain("active");
+  });
+
   it("rejects an id that does not belong to the owner and writes nothing", async () => {
     connectionExecute.mockResolvedValueOnce([[], []]);
 

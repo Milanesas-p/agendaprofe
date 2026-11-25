@@ -64,8 +64,9 @@ function NuevaClase() {
       })
     : [];
 
-  const candidates = students.filter((s) => matchesStudent(s.name, search));
-  const chosen = students.find((s) => s.id === studentId);
+  const activeStudents = students.filter((s) => s.active !== false);
+  const candidates = activeStudents.filter((s) => matchesStudent(s.name, search));
+  const chosen = activeStudents.find((s) => s.id === studentId);
   const ready = Boolean(studentId) && Boolean(start);
 
   async function submit() {
@@ -89,7 +90,7 @@ function NuevaClase() {
             <input type="search" aria-label="Buscar alumno para la clase" placeholder="Buscar alumno" value={search} onChange={(e) => setSearch(e.target.value)} className="h-12 w-full min-w-0 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
           </label>
           {candidates.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">{students.length === 0 ? "Todavía no hay alumnos." : "No hay coincidencias."}</p>
+            <p className="mt-3 text-sm text-muted-foreground">{activeStudents.length === 0 ? "Todavía no hay alumnos activos." : "No hay coincidencias."}</p>
           ) : (
             <div className="mt-3 flex flex-wrap gap-2">
               {candidates.map((s) => (

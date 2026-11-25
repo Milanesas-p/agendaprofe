@@ -5,7 +5,7 @@ import { iso } from "@/lib/store";
 
 const { store, navigate } = vi.hoisted(() => ({
   store: {
-    students: [] as { id: string; name: string }[],
+    students: [] as { id: string; name: string; active?: boolean }[],
     lessons: [] as { id: string; date: string; start: string; studentId: string; status: string }[],
     settings: { startHour: 8, endHour: 11, blockMin: 60 },
     busy: false,
@@ -115,5 +115,16 @@ describe("new class flow", () => {
 
     expect(screen.queryByRole("button", { name: "Mateo Rossi" })).toBeNull();
     expect(screen.getByRole("button", { name: "Sofía Valenzuela" })).toBeTruthy();
+  });
+
+  it("does not offer a disabled student", () => {
+    store.students = [
+      { id: "s1", name: "Baja Verano", active: false },
+      student("s2", "Mateo Rossi"),
+    ];
+    renderPage();
+
+    expect(screen.queryByRole("button", { name: "Baja Verano" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Mateo Rossi" })).toBeTruthy();
   });
 });

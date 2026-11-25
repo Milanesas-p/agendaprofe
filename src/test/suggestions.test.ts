@@ -26,7 +26,13 @@ const lesson = (
 });
 
 const suggest = (
-  students: { id: string; name: string; type: "fijo" | "rotativo" }[],
+  students: {
+    id: string;
+    name: string;
+    type: "fijo" | "rotativo";
+    active?: boolean;
+    slots?: { weekday: number; time: string }[];
+  }[],
   lessons: { date: string; start: string; studentId: string; status: ClassStatus }[],
   target = TARGET,
 ) => suggestionsFor({ date: target, start: "09:00", students, lessons, todayISO: TODAY });
@@ -157,6 +163,24 @@ describe("suggestions for a slot", () => {
 
   it("returns nothing for a day without a valid date", () => {
     expect(suggest([student("s1", "Juan Gómez")], [lesson("2026-11-10", "s1")], "")).toEqual([]);
+  });
+
+  it("never suggests a disabled student, even with history or a habitual slot", () => {
+    const out = suggest(
+      [
+        { id: "s1", name: "Baja", type: "rotativo", active: false, slots: [{ weekday: 2, time: "09:00" }] },
+        { id: "s2", name: "Activo", type: "rotativo", active: true },
+      ],
+      [lesson("2026-11-10", "s1"), lesson("2026-11-10", "s2")],
+    );
+
+    expect(out.map((s) => s.name)).toEqual(["Activo"]);
+  });
+
+  it("keeps suggesting students from payloads without the flag", () => {
+    const out = suggest([student("s1", "Juan Gómez")], [lesson("2026-11-10", "s1")]);
+
+    expect(out).toHaveLength(1);
   });
 });
 

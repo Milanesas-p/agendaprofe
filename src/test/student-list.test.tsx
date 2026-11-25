@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Route } from "@/routes/alumnos";
 
@@ -51,6 +51,7 @@ const student = (over: Record<string, unknown> = {}) => ({
   courtSide: null,
   slots: [],
   balance: 0,
+  active: true,
   ...over,
 });
 
@@ -121,5 +122,26 @@ describe("student list", () => {
     expect(screen.getByText("Alumno")).toBeTruthy();
     expect(screen.getByText("Saldo")).toBeTruthy();
     expect(screen.getByText("Clases")).toBeTruthy();
+  });
+
+  it("marks a disabled student and keeps them in the directory", () => {
+    store.students = [student({ name: "Baja Verano", active: false })];
+    renderPage();
+
+    expect(screen.getByText("Baja Verano")).toBeTruthy();
+    expect(screen.getByText("Inactivo")).toBeTruthy();
+  });
+
+  it("filters the directory down to disabled students", async () => {
+    store.students = [
+      student({ id: "s1", name: "Activo Uno", active: true }),
+      student({ id: "s2", name: "Baja Verano", active: false }),
+    ];
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "inactivos" }));
+
+    expect(screen.queryByText("Activo Uno")).toBeNull();
+    expect(screen.getByText("Baja Verano")).toBeTruthy();
   });
 });

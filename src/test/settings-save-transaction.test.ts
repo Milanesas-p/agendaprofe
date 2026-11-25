@@ -304,6 +304,15 @@ describe("saving the hours: fixed-slot validation", () => {
     expect(result.conflicts).toHaveLength(0);
   });
 
+  it("ignores paused students when validating the working hours", async () => {
+    fixed = [];
+
+    await save(day);
+
+    const read = sqlLog.find((call) => call.sql.startsWith("SELECT DISTINCT s.name"));
+    expect(read?.sql).toContain("s.active = 1");
+  });
+
   it("names both students when two fixed slots share the missing hour", async () => {
     const narrow = { ...day, endHour: 17 };
     fixed = [

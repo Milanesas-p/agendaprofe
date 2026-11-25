@@ -23,6 +23,8 @@ export type SuggestableStudent = {
   type: "fijo" | "rotativo";
   /** Habitual weekly slots; a rotativo's are never booked automatically. */
   slots?: readonly { weekday: number; time: string }[];
+  /** False while the student is paused; a paused student is never offered. */
+  active?: boolean;
 };
 export type SuggestableLesson = {
   date: string;
@@ -109,6 +111,7 @@ export function suggestionsFor(input: {
 
   const out: Suggestion[] = [];
   for (const student of students) {
+    if (student.active === false) continue;
     if (inSlot.has(student.id)) continue;
     const stat = history.get(student.id);
     const fromHistory = stat !== undefined && stat.lastStatus === "presente" && stat.attended > 0;

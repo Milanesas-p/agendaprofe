@@ -16,6 +16,7 @@ const maxi: Student = {
   courtSide: "reves",
   slots: [{ weekday: 1, time: "14:00" }],
   balance: 4,
+  active: true,
 };
 
 const { store, navigate } = vi.hoisted(() => ({

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { applyStatus, type Lesson, type Student } from "@/lib/store";
 
-const s: Student = { id: "a", name: "A", type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, slots: [], balance: 3 };
+const s: Student = { id: "a", name: "A", type: "fijo", pay: "mensual", phone: null, category: null, courtSide: null, slots: [], balance: 3, active: true };
 const l = (status: Lesson["status"]): Lesson => ({ id: "l", date: "2026-01-01", start: "09:00", studentId: "a", status, notified: false });
 
 describe("descuento automático", () => {

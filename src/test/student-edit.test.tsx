@@ -38,11 +38,11 @@ describe("student editing", () => {
     await waitFor(() => expect(store?.loading).toBe(false));
 
     await act(async () => {
-      await store?.updateStudent("student-1", { name: " María Pérez ", type: "rotativo", pay: "individual", phone: "5492302666351", slots: [{ weekday: 5, time: "14:00" }], category: "2da", courtSide: "drive" });
+      await store?.updateStudent("student-1", { name: " María Pérez ", type: "rotativo", pay: "individual", phone: "5492302666351", slots: [{ weekday: 5, time: "14:00" }], category: "2da", courtSide: "drive", active: true });
     });
 
     expect(updateStudent).toHaveBeenCalledWith({
-      data: { id: "student-1", name: "María Pérez", type: "rotativo", pay: "individual", phone: "5492302666351", slots: [{ weekday: 5, time: "14:00" }], category: "2da", courtSide: "drive" },
+      data: { id: "student-1", name: "María Pérez", type: "rotativo", pay: "individual", phone: "5492302666351", slots: [{ weekday: 5, time: "14:00" }], category: "2da", courtSide: "drive", active: true },
     });
     view.unmount();
   });

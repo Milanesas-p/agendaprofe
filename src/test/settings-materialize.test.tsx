@@ -54,6 +54,7 @@ const fixedBeto: Student = {
   courtSide: null,
   slots: [{ weekday: 5, time: "17:00" }],
   balance: 0,
+  active: true,
 };
 
 let store: ReturnType<typeof useStore> | undefined;

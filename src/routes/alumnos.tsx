@@ -28,15 +28,24 @@ export const Route = createFileRoute("/alumnos")({
 
 function Alumnos() {
   const { students, adjustBalance, addStudent, updateStudent, busy, loading } = useStore();
-  const [filter, setFilter] = useState<"todos" | "fijo" | "rotativo" | "deuda">("todos");
+  const [filter, setFilter] = useState<"todos" | "fijo" | "rotativo" | "deuda" | "inactivos">("todos");
   const [nuevo, setNuevo] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
   const [search, setSearch] = useState("");
-  const list = students.filter((s) => matchesStudent(s.name, search) && (filter === "todos" || (filter === "deuda" ? s.balance < 0 : s.type === filter)));
+  const inactive = students.filter((s) => s.active === false).length;
+  const list = students.filter((s) =>
+    matchesStudent(s.name, search) &&
+    (filter === "todos" ||
+      (filter === "deuda"
+        ? s.balance < 0
+        : filter === "inactivos"
+          ? s.active === false
+          : s.type === filter)),
+  );
 
   return (
     <>
-      <PageHeader sub={`${students.length} alumnos`} title="Alumnos" right={
+      <PageHeader sub={inactive > 0 ? `${students.length} alumnos · ${inactive} inactivos` : `${students.length} alumnos`} title="Alumnos" right={
         <div className="flex shrink-0 items-center gap-2">
           <Link to="/importar" aria-label="Importar alumnos" className="grid h-12 w-12 place-items-center rounded-full bg-muted text-foreground">
             <Upload className="h-5 w-5" />
@@ -49,9 +58,9 @@ function Alumnos() {
           <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
           <input type="search" aria-label="Buscar alumno" placeholder="Buscar alumno" value={search} onChange={e => setSearch(e.target.value)} className="h-12 w-full min-w-0 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
         </label>
-        <div className="mx-4 mt-3 grid grid-cols-4 gap-1 rounded-lg bg-muted p-1 lg:mx-0 lg:mt-0 lg:w-80">
-          {(["todos", "fijo", "rotativo", "deuda"] as const).map((f) => (
-            <Button variant="ghost" key={f} onClick={() => setFilter(f)} className={`h-10 rounded-md px-1 text-xs font-semibold capitalize ${filter === f ? "bg-foreground text-background" : "text-muted-foreground"}`}>{f}</Button>
+        <div className="mx-4 mt-3 grid grid-cols-5 gap-1 rounded-lg bg-muted p-1 lg:mx-0 lg:mt-0 lg:w-96">
+          {(["todos", "fijo", "rotativo", "deuda", "inactivos"] as const).map((f) => (
+            <Button variant="ghost" key={f} onClick={() => setFilter(f)} className={`h-10 rounded-md px-1 text-[11px] font-semibold capitalize ${filter === f ? "bg-foreground text-background" : "text-muted-foreground"}`}>{f}</Button>
           ))}
         </div>
       </div>
@@ -73,6 +82,7 @@ function Alumnos() {
                 <Button variant="ghost" aria-label={`Editar ${s.name}`} onClick={() => setEditing(s)} className="h-auto max-w-full justify-start p-0 text-lg font-semibold text-foreground hover:bg-transparent">
                   <span className="truncate">{s.name}</span><Pencil className="shrink-0 text-muted-foreground" />
                 </Button>
+                {s.active === false && <span className="mt-1 inline-block rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">Inactivo</span>}
                 <p className="mt-1 text-sm text-muted-foreground">{[s.type, s.category, s.courtSide ? courtSideLabel(s.courtSide) : null, slotsLabel(s.slots)].filter(Boolean).join(" · ")}</p>
               </div>
               <span aria-hidden className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full lg:hidden ${s.balance > 0 ? "bg-court" : s.balance < 0 ? "bg-destructive" : "bg-border"}`} />
@@ -101,7 +111,7 @@ const balancePhrase = (balance: number): string => {
 
 function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean }) {
   const { settings, lessons, addLesson } = useStore();
-  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: null, phone: null, category: null, courtSide: null, slots: [], balance: 0 });
+  const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: null, phone: null, category: null, courtSide: null, slots: [], balance: 0, active: true });
   const [booking, setBooking] = useState(false);
   const [date, setDate] = useState(() => iso(new Date()));
   const [start, setStart] = useState("");
@@ -173,6 +183,17 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
         {!student && <label className="block text-sm font-semibold">Clases pagadas (cantidad)
           <input type="number" value={f.balance} onChange={(e) => setF({ ...f, balance: Number(e.target.value) || 0 })} className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]" />
         </label>}
+        {student && <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+          <div className="min-w-0">
+            <label htmlFor="student-active" className="text-sm font-semibold">Alumno activo</label>
+            <p className="text-xs text-muted-foreground">
+              {f.active
+                ? "Se agendan sus horarios fijos."
+                : "No se agendan clases nuevas. El horario, el historial y el saldo se conservan."}
+            </p>
+          </div>
+          <Switch id="student-active" checked={f.active} disabled={submitting || busy || Boolean(savedId)} onCheckedChange={(value) => setF({ ...f, active: value })} />
+        </div>}
         <div className="space-y-2 border-t border-border pt-4">
           <p className="text-sm font-semibold">Horarios semanales</p>
           {f.slots.map((slot, index) => (

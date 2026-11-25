@@ -15,7 +15,7 @@ import {
   type FixedSlot,
 } from "@/lib/rules";
 import { normalizePhone } from "@/lib/phone";
-import { datesToGenerate, type StudentSlot } from "@/lib/recurrence";
+import { datesToGenerate, addIsoDays, type StudentSlot } from "@/lib/recurrence";
 import { LESSON_WINDOW_FUTURE_DAYS, LESSON_WINDOW_PAST_DAYS } from "@/lib/lesson-window";
 import { CATEGORIES, COURT_SIDES, type Category, type CourtSide } from "@/lib/player";
 import { PAY_MODES, type PayMode } from "@/lib/pay";
@@ -34,6 +34,8 @@ export type StudentDto = {
   /** Weekly slots; a `fijo` gets every one booked and a `rotativo` keeps them habitual. */
   slots: StudentSlot[];
   balance: number;
+  /** False while the student is paused (e.g. summer): no new classes are booked. */
+  active: boolean;
 };
 
 /** A weekly occurrence that could not be created, so the teacher can react. */
@@ -306,13 +308,14 @@ type RawStudentRow = {
   category: Category | null;
   court_side: CourtSide | null;
   balance: number;
+  active: number | boolean;
 };
 
 export const getSnapshot = createServerFn({ method: "GET" }).handler(
   async (): Promise<Snapshot> => {
     const ownerId = await requireUserId();
     const [studentRows] = await db().execute(
-      "SELECT id, name, type, pay, phone, category, court_side, balance FROM students WHERE owner_id = ? ORDER BY name",
+      "SELECT id, name, type, pay, phone, category, court_side, balance, active FROM students WHERE owner_id = ? ORDER BY name",
       [ownerId],
     );
     const [slotRows] = await db().execute(
@@ -347,6 +350,7 @@ export const getSnapshot = createServerFn({ method: "GET" }).handler(
       courtSide: (s.court_side ?? null) as CourtSide | null,
       slots: slotsByStudent.get(s.id) ?? [],
       balance: Number(s.balance),
+      active: Boolean(Number(s.active)),
     }));
     const lessons = (
       lessonRows as Array<{
@@ -414,6 +418,9 @@ export const addStudent = createServerFn({ method: "POST" })
 export const updateStudent = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     const raw = (input ?? {}) as Record<string, unknown>;
+    const active = raw["active"];
+    if (active !== undefined && active !== null && typeof active !== "boolean")
+      throw new Error("Dato inválido: estado del alumno.");
     return {
       id: rowId(raw["id"]),
       name: text(raw["name"], "nombre", 120),
@@ -422,16 +429,28 @@ export const updateStudent = createServerFn({ method: "POST" })
       phone: normalizePhone(raw["phone"]),
       ...playerProfile(raw),
       ...slotsOf(raw),
+      /** Null means "leave the current state alone". */
+      active: (active ?? null) as boolean | null,
     };
   })
   .handler(async ({ data }): Promise<void> => {
     const ownerId = await requireUserId();
+    const today = localToday();
     // The balance is deliberately not touchable here: it only moves through
     // attendance or an explicit +/- adjustment. Changing the weekly slots is not
     // retroactive: occurrences already created stay where they are.
     await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(
+        "SELECT active FROM students WHERE id = ? AND owner_id = ? FOR UPDATE",
+        [data.id, ownerId],
+      );
+      const current = (rows as Array<{ active: number | boolean }>)[0];
+      if (!current) throw new Error("Ese alumno no existe.");
+      const wasActive = Boolean(Number(current.active));
+      const nextActive = data.active ?? wasActive;
+
       const [result] = await connection.execute(
-        "UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ? WHERE id = ? AND owner_id = ?",
+        "UPDATE students SET name = ?, type = ?, pay = ?, phone = ?, category = ?, court_side = ?, active = ? WHERE id = ? AND owner_id = ?",
         [
           data.name,
           data.type,
@@ -439,6 +458,7 @@ export const updateStudent = createServerFn({ method: "POST" })
           data.phone,
           data.category,
           data.courtSide,
+          nextActive ? 1 : 0,
           data.id,
           ownerId,
         ],
@@ -446,6 +466,26 @@ export const updateStudent = createServerFn({ method: "POST" })
       if ((result as { affectedRows: number }).affectedRows === 0)
         throw new Error("Ese alumno no existe.");
       await syncSlots(connection, ownerId, data.id, data.slots);
+
+      if (wasActive && !nextActive) {
+        // Future occurrences are plans, not history: remove the ones still
+        // scheduled so the slot is released. A manual cancellation is kept, so
+        // the recurrence never resurrects a class the teacher cancelled on purpose.
+        await connection.execute(
+          "DELETE FROM lessons WHERE owner_id = ? AND student_id = ? AND lesson_date > ? AND status IN ('programada', 'confirmado')",
+          [ownerId, data.id, today],
+        );
+        // The marker goes back one day, so enabling later books the schedule again.
+        await connection.execute(
+          "UPDATE student_slots SET last_generated = ? WHERE owner_id = ? AND student_id = ?",
+          [addIsoDays(today, -1), ownerId, data.id],
+        );
+      } else if (!wasActive && nextActive) {
+        // Coming back: fill the fixed slots in the same transaction, honouring the
+        // capacity rule and reporting any conflict the usual way.
+        const allowed = slots(await readSettings(ownerId));
+        await materializeOn(connection, ownerId, allowed, today);
+      }
     });
   });
 
@@ -609,7 +649,7 @@ async function materializeOn(
     `SELECT s.id, s.name, sl.weekday, sl.start_time, sl.last_generated
        FROM student_slots sl
        JOIN students s ON s.id = sl.student_id AND s.owner_id = sl.owner_id
-      WHERE sl.owner_id = ? AND s.type = 'fijo'
+      WHERE sl.owner_id = ? AND s.type = 'fijo' AND s.active = 1
       ORDER BY s.name, sl.weekday, sl.start_time`,
     [ownerId],
   );
@@ -816,7 +856,7 @@ export const saveSettings = createServerFn({ method: "POST" })
         `SELECT DISTINCT s.name AS name, sl.start_time AS time
            FROM student_slots sl
            JOIN students s ON s.id = sl.student_id AND s.owner_id = sl.owner_id
-          WHERE sl.owner_id = ? AND s.type = 'fijo'`,
+          WHERE sl.owner_id = ? AND s.type = 'fijo' AND s.active = 1`,
         [ownerId],
       );
       const outside = fixedSlotsOutsideBlocks(data, fixedRows as FixedSlot[]);
