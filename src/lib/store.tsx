@@ -405,9 +405,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return false;
       }
       // A fixed slot with no lesson yet is invisible to the check above, so the
-      // day is also compared with the students' own weekly slots.
+      // day is also compared with the students' own weekly slots. A paused student
+      // no longer blocks the day: the server skips them too (`s.active = 1`).
       const fixed = st.students
-        .filter((student) => student.type === "fijo")
+        .filter((student) => student.type === "fijo" && student.active !== false)
         .flatMap((student) =>
           student.slots.map((slot) => ({ name: student.name, time: slot.time })),
         );
