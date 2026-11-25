@@ -24,7 +24,7 @@ Branch: migracion-node-mysql. Delivery: ask-on-risk. Runner: `npx vitest run`.
 | T4 | Sugerencias y "Nueva clase" excluyen inactivos | S5 | inline | hecho — tests de sugerencias y nueva-clase |
 | T5 | UI: switch en el editor, marca y filtro "Inactivos" en el directorio | S6 | inline | hecho — tests de directorio |
 | T6 | Import respeta el estado existente | S7 | inline | hecho — UPDATE sin `active` |
-| T7 | Tests, suite completa, `tsc` y lint | S1-S8 | inline | hecho — 448/448 tests, `tsc` limpio |
+| T7 | Tests, suite completa, `tsc` y lint | S1-S8 | inline | hecho — 450/450 tests, `tsc` limpio |
 
 ## Log
 
@@ -33,3 +33,4 @@ Branch: migracion-node-mysql. Delivery: ask-on-risk. Runner: `npx vitest run`.
 - **L3** — Decisión de implementación: para que reactivar restaure la agenda sin resucitar clases que el profesor canceló a propósito, el deshabilitado **borra** solo las clases futuras `programada`/`confirmado` (nunca tocó asistencia ni historial) y retrocede `last_generated` a ayer. Las canceladas a mano se preservan y siguen bloqueando su fecha.
 - **L4** — Implementación inline. `students.active` + migración; `getSnapshot` y `Student` exponen `active`; `updateStudent` lee el estado con `FOR UPDATE`, actualiza en la misma transacción, borra futuras al deshabilitar y materializa al reactivar; `materializeOn` y la validación de jornada filtran `s.active = 1`; sugerencias y "Nueva clase" excluyen inactivos; el editor tiene el switch "Alumno activo" y el directorio marca y filtra "Inactivos". `importStudents` no toca `active`. Tests nuevos: `student-active.test.ts` (7), sugerencias, directorio, editor, nueva clase e import. Suite 448/448, `tsc` limpio.
 - **L5** — Operación: antes de desplegar hay que aplicar `db/migrations/2026-11-25-students-active.sql` en la base real; sin la columna el snapshot falla.
+- **L6** — Verificación independiente (base `0fe1814^`, candidato `0fe1814`): S1, S2, S4-S8 cumplidas; un blocker en S3: la validación de jornada del cliente (`store.tsx`) seguía mirando a los alumnos inactivos, así que pausar a alguien no liberaba el achicado de la jornada aunque el servidor sí. Corregido en `db0cc1d` con el filtro `active !== false` y la regresión `src/test/settings-paused-student.test.tsx` (RED → GREEN). Recheck del blocker en verde; suite final 450/450 y `tsc` limpio. Avisos no bloqueantes: reactivar no informa conflictos de cupo, y `addLesson` no rechaza inactivos en el servidor (la exclusión es de UI).
