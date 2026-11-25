@@ -433,13 +433,13 @@ export const updateStudent = createServerFn({ method: "POST" })
       active: (active ?? null) as boolean | null,
     };
   })
-  .handler(async ({ data }): Promise<void> => {
+  .handler(async ({ data }): Promise<MaterializeResult> => {
     const ownerId = await requireUserId();
     const today = localToday();
     // The balance is deliberately not touchable here: it only moves through
     // attendance or an explicit +/- adjustment. Changing the weekly slots is not
     // retroactive: occurrences already created stay where they are.
-    await withTransaction(async (connection) => {
+    return withTransaction(async (connection) => {
       const [rows] = await connection.execute(
         "SELECT active FROM students WHERE id = ? AND owner_id = ? FOR UPDATE",
         [data.id, ownerId],
@@ -480,12 +480,16 @@ export const updateStudent = createServerFn({ method: "POST" })
           "UPDATE student_slots SET last_generated = ? WHERE owner_id = ? AND student_id = ?",
           [addIsoDays(today, -1), ownerId, data.id],
         );
-      } else if (!wasActive && nextActive) {
-        // Coming back: fill the fixed slots in the same transaction, honouring the
-        // capacity rule and reporting any conflict the usual way.
-        const allowed = slots(await readSettings(ownerId));
-        await materializeOn(connection, ownerId, allowed, today);
+        return { created: 0, conflicts: [] };
       }
+      if (!wasActive && nextActive) {
+        // Coming back: fill the fixed slots in the same transaction, honouring the
+        // capacity rule. The conflicts go back to the client so the teacher sees
+        // which reactivated slot could not be booked.
+        const allowed = slots(await readSettings(ownerId));
+        return materializeOn(connection, ownerId, allowed, today);
+      }
+      return { created: 0, conflicts: [] };
     });
   });
 

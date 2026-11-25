@@ -327,7 +327,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     updateStudent: (id, s) =>
       changed(async () => {
-        await updateStudentFn({
+        const result = await updateStudentFn({
           data: {
             id,
             name: s.name.trim(),
@@ -340,6 +340,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             active: s.active,
           },
         });
+        // Reactivating can find a block taken by someone else; say which one.
+        if (result && result.conflicts.length > 0)
+          toast.error(conflictsMessage(result.conflicts));
         if (s.type === "fijo" && s.slots.length > 0) await afterScheduleChange();
       }, "No se pudo guardar el alumno."),
     adjustBalance: (id, delta) =>

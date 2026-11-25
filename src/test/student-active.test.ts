@@ -132,7 +132,10 @@ const data = (await import("@/server/data")) as unknown as {
       id: string;
       active: boolean | null;
     };
-    _handler: (args: { data: unknown }) => Promise<void>;
+    _handler: (args: { data: unknown }) => Promise<{
+      created: number;
+      conflicts: Array<{ studentName: string; date: string; time: string; reason: string }>;
+    }>;
   };
 };
 
@@ -278,6 +281,32 @@ describe("enabling a student", () => {
 
     const series = sqlLog.filter((call) => call.sql.includes("FROM student_slots"));
     expect(series.some((call) => call.sql.includes("s.active = 1"))).toBe(true);
+  });
+
+  it("reports the conflicts when a reactivated slot is already full", async () => {
+    active = false;
+    slotRows = [
+      { id: "student-1", name: "Beto Ruiz", weekday: 5, start_time: "17:00", last_generated: null },
+    ];
+    for (let i = 0; i < 4; i += 1) {
+      lessonRows.push({
+        id: `other-${i}`,
+        student_id: `other-${i}`,
+        lesson_date: "2026-11-27",
+        start_time: "17:00",
+        status: "programada",
+      });
+    }
+
+    const result = await update(student({ active: true, slots: [{ weekday: 5, time: "17:00" }] }));
+
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]).toMatchObject({
+      studentName: "Beto Ruiz",
+      date: "2026-11-27",
+      time: "17:00",
+      reason: "full",
+    });
   });
 });
 
