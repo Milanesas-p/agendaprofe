@@ -1,7 +1,7 @@
 import { weekStartFor, matchesStudent, movedFromLabel, slotsLabel } from "@/lib/agenda";
 import { Sheet } from "@/components/Sheet";
 import { ReactivateStudent } from "@/components/ReactivateStudent";
-import { reactivationPayload } from "@/lib/students";
+import { activePayload } from "@/lib/students";
 import { Button } from "@/components/ui/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -554,7 +554,7 @@ function Agenda() {
         busy={busy}
         onCancel={() => setPaused(null)}
         onConfirm={async (s) => {
-          if (!(await updateStudent(s.id, reactivationPayload(s)))) return;
+          if (!(await updateStudent(s.id, activePayload(s, true)))) return;
           setPaused(null);
           if (adding && (await addLesson({ date: day, start: adding, studentId: s.id })))
             setAdding(null);

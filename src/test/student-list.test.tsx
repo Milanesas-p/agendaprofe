@@ -66,6 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   store.students = [];
   store.adjustBalance.mockResolvedValue(true);
+  store.updateStudent.mockResolvedValue(true);
 });
 afterEach(cleanup);
 
@@ -145,6 +146,56 @@ describe("student list", () => {
 
     expect(screen.queryByText("Activo Uno")).toBeNull();
     expect(screen.getByText("Baja Verano")).toBeTruthy();
+  });
+});
+
+describe("pausing from the row", () => {
+  it("explains the consequence and pauses the student", async () => {
+    store.students = [student()];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Deshabilitar a María Pérez" }));
+
+    expect(screen.getByText("Deshabilitar alumno")).toBeTruthy();
+    expect(
+      screen.getByText(/Se borran sus clases futuras programadas y se libera el cupo/),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Deshabilitar" }));
+
+    await waitFor(() =>
+      expect(store.updateStudent).toHaveBeenCalledWith(
+        "student-1",
+        expect.objectContaining({ active: false }),
+      ),
+    );
+  });
+
+  it("keeps the student active when the teacher cancels", () => {
+    store.students = [student()];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Deshabilitar a María Pérez" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(store.updateStudent).not.toHaveBeenCalled();
+  });
+
+  it("reactivates a paused student from the row", async () => {
+    store.students = [student({ id: "s1", name: "Baja Verano", active: false })];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reactivar a Baja Verano" }));
+
+    expect(screen.getByText("Ese alumno está inactivo")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sí, reactivar" }));
+
+    await waitFor(() =>
+      expect(store.updateStudent).toHaveBeenCalledWith(
+        "s1",
+        expect.objectContaining({ active: true }),
+      ),
+    );
   });
 });
 

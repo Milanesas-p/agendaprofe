@@ -14,6 +14,8 @@ type Props = {
   /** The paused student the teacher just picked, or null to keep it closed. */
   student: Student | null;
   busy?: boolean;
+  /** Overrides the sentence under the title (the directory explains it differently). */
+  description?: string;
   onCancel: () => void;
   onConfirm: (student: Student) => void | Promise<void>;
 };
@@ -23,7 +25,7 @@ type Props = {
  * them, so booking a class never sends them to the directory to flip the switch
  * first. Reactivating keeps the schedule, history and balance untouched.
  */
-export function ReactivateStudent({ student, busy = false, onCancel, onConfirm }: Props) {
+export function ReactivateStudent({ student, busy = false, description, onCancel, onConfirm }: Props) {
   return (
     <AlertDialog open={student !== null} onOpenChange={(open) => !open && onCancel()}>
       <AlertDialogContent>
@@ -31,7 +33,7 @@ export function ReactivateStudent({ student, busy = false, onCancel, onConfirm }
           <AlertDialogTitle>Ese alumno está inactivo</AlertDialogTitle>
           <AlertDialogDescription>
             {student
-              ? `${student.name} está en pausa. ¿Querés reactivarlo para seguir con la clase?`
+              ? (description ?? `${student.name} está en pausa. ¿Querés reactivarlo para seguir con la clase?`)
               : ""}
           </AlertDialogDescription>
         </AlertDialogHeader>

@@ -1,12 +1,23 @@
 import { Button } from "@/components/ui/button";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Minus, UserPlus, Search, Pencil, Upload } from "lucide-react";
+import { Plus, Minus, UserPlus, Search, Pencil, Upload, Power } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Sheet } from "@/components/Sheet";
 import { ReactivateStudent } from "@/components/ReactivateStudent";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { matchesStudent, slotsLabel, WEEKDAYS } from "@/lib/agenda";
 import { useStore, slots, iso, PAY_MODES, type Student, type Category, type CourtSide } from "@/lib/store";
+import { activePayload } from "@/lib/students";
 import type { StudentSlot } from "@/lib/recurrence";
 import { CATEGORIES, COURT_SIDES, courtSideLabel } from "@/lib/player";
 import { canAddToLesson } from "@/lib/rules";
@@ -35,8 +46,14 @@ function Alumnos() {
   const [editing, setEditing] = useState<Student | null>(null);
   // Monthly top-up opened from the row: +1, +4 or +8 in one move.
   const [adding, setAdding] = useState<Student | null>(null);
+  // Pause or bring back a student from the row, after a confirmation.
+  const [status, setStatus] = useState<{ student: Student; nextActive: boolean } | null>(null);
   const [search, setSearch] = useState("");
   const inactive = students.filter((s) => s.active === false).length;
+  const applyStatus = async (s: Student, nextActive: boolean) => {
+    if (!(await updateStudent(s.id, activePayload(s, nextActive)))) return;
+    setStatus(null);
+  };
   const list = students.filter((s) =>
     matchesStudent(s.name, search) &&
     (filter === "todos" ||
@@ -88,6 +105,16 @@ function Alumnos() {
                 </Button>
                 {s.active === false && <span className="mt-1 inline-block rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">Inactivo</span>}
                 <p className="mt-1 text-sm text-muted-foreground">{[s.type, s.category, s.courtSide ? courtSideLabel(s.courtSide) : null, slotsLabel(s.slots)].filter(Boolean).join(" · ")}</p>
+                <Button
+                  variant="ghost"
+                  aria-label={s.active === false ? `Reactivar a ${s.name}` : `Deshabilitar a ${s.name}`}
+                  disabled={busy}
+                  onClick={() => setStatus({ student: s, nextActive: s.active === false })}
+                  className="mt-1 h-auto gap-1 p-0 text-xs font-semibold text-muted-foreground hover:bg-transparent hover:text-foreground"
+                >
+                  <Power className="h-3.5 w-3.5" />
+                  {s.active === false ? "Reactivar" : "Deshabilitar"}
+                </Button>
               </div>
               <span aria-hidden className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full lg:hidden ${s.balance > 0 ? "bg-court" : s.balance < 0 ? "bg-destructive" : "bg-border"}`} />
             </div>
@@ -102,6 +129,23 @@ function Alumnos() {
       {nuevo && <StudentEditor busy={busy} onClose={() => setNuevo(false)} onSave={addStudent} />}
       {editing && <StudentEditor busy={busy} student={editing} onClose={() => setEditing(null)} onSave={async s => await updateStudent(editing.id, s) ? editing.id : false} />}
       {adding && <AddClasses student={adding} onClose={() => setAdding(null)} />}
+      {status && status.nextActive && (
+        <ReactivateStudent
+          student={status.student}
+          busy={busy}
+          description={`${status.student.name} vuelve a agendarse desde hoy. Se reservan sus horarios fijos si hay cupo.`}
+          onCancel={() => setStatus(null)}
+          onConfirm={(s) => applyStatus(s, true)}
+        />
+      )}
+      {status && !status.nextActive && (
+        <DeactivateStudent
+          student={status.student}
+          busy={busy}
+          onCancel={() => setStatus(null)}
+          onConfirm={(s) => applyStatus(s, false)}
+        />
+      )}
     </>
   );
 }
@@ -158,6 +202,40 @@ function AddClasses({ student, onClose }: { student: Student; onClose: () => voi
         ))}
       </div>
     </Sheet>
+  );
+}
+
+/** Confirms pausing a student: the one row action that removes future classes. */
+function DeactivateStudent({ student, busy, onCancel, onConfirm }: {
+  student: Student;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: (student: Student) => void | Promise<void>;
+}) {
+  return (
+    <AlertDialog open onOpenChange={(open) => !open && onCancel()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Deshabilitar alumno</AlertDialogTitle>
+          <AlertDialogDescription>
+            {student.name} deja de agendarse. Se borran sus clases futuras programadas y se libera el cupo. El historial, el saldo y los horarios semanales se conservan.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy} onClick={onCancel}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy}
+            onClick={(event) => {
+              // Keep the dialog open while the pause runs.
+              event.preventDefault();
+              void onConfirm(student);
+            }}
+          >
+            Deshabilitar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

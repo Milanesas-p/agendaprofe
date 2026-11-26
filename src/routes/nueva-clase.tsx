@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReactivateStudent } from "@/components/ReactivateStudent";
-import { reactivationPayload } from "@/lib/students";
+import { activePayload } from "@/lib/students";
 import { canAddToLesson } from "@/lib/rules";
 import { useStore, slots, iso, addDays, type Student } from "@/lib/store";
 import { matchesStudent } from "@/lib/agenda";
@@ -159,7 +159,7 @@ function NuevaClase() {
         busy={busy}
         onCancel={() => setPaused(null)}
         onConfirm={async (s) => {
-          if (!(await updateStudent(s.id, reactivationPayload(s)))) return;
+          if (!(await updateStudent(s.id, activePayload(s, true)))) return;
           setPaused(null);
           setStudentId(s.id);
           setStart("");
