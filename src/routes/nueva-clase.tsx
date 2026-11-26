@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReactivateStudent } from "@/components/ReactivateStudent";
 import { activePayload } from "@/lib/students";
+import { toast } from "sonner";
 import { canAddToLesson } from "@/lib/rules";
 import { useStore, slots, iso, addDays, type Student } from "@/lib/store";
 import { matchesStudent } from "@/lib/agenda";
@@ -159,8 +160,11 @@ function NuevaClase() {
         busy={busy}
         onCancel={() => setPaused(null)}
         onConfirm={async (s) => {
-          if (!(await updateStudent(s.id, activePayload(s, true)))) return;
+          // A returning student starts with a clean schedule: clear the old slots
+          // so the previous days are not booked again behind the teacher's back.
+          if (!(await updateStudent(s.id, { ...activePayload(s, true), slots: [] }))) return;
           setPaused(null);
+          toast.success(`${s.name} reactivado. Configurá sus horarios en Alumnos.`);
           setStudentId(s.id);
           setStart("");
         }}

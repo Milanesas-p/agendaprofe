@@ -30,7 +30,7 @@ vi.mock("@/server/data", () => ({
   materializeRecurring: vi.fn(), moveLesson: vi.fn(),
 }));
 vi.mock("@/server/auth", () => ({ getCurrentUser: vi.fn(), loginUser: vi.fn(), logoutUser: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const today = iso(new Date());
 const student = (id: string, name: string) => ({ id, name });

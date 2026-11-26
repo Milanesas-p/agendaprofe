@@ -48,11 +48,21 @@ function Alumnos() {
   const [adding, setAdding] = useState<Student | null>(null);
   // Pause or bring back a student from the row, after a confirmation.
   const [status, setStatus] = useState<{ student: Student; nextActive: boolean } | null>(null);
+  // A student just came back: the editor opens empty and explains what is missing.
+  const [reactivatedNotice, setReactivatedNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const inactive = students.filter((s) => s.active === false).length;
   const applyStatus = async (s: Student, nextActive: boolean) => {
-    if (!(await updateStudent(s.id, activePayload(s, nextActive)))) return;
+    // Coming back asks for a fresh schedule: the old weekly slots are cleared
+    // (and with them the automatic booking), so the teacher sets the new days.
+    const payload = nextActive ? { ...activePayload(s, true), slots: [] } : activePayload(s, false);
+    if (!(await updateStudent(s.id, payload))) return;
     setStatus(null);
+    if (nextActive) {
+      toast.success(`${s.name} reactivado. Configurá el alumno nuevamente.`);
+      setReactivatedNotice(`Cargá los nuevos horarios de ${s.name} y guardá para volver a agendarlo.`);
+      setEditing({ ...s, slots: [], active: true });
+    }
   };
   const list = students.filter((s) =>
     matchesStudent(s.name, search) &&
@@ -100,7 +110,7 @@ function Alumnos() {
           <li key={s.id} className="rounded-xl border border-border bg-card p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_13rem] lg:items-center lg:gap-4 lg:rounded-none lg:border-0 lg:px-4 lg:py-3">
             <div className="flex items-start justify-between gap-3 lg:block">
               <div className="min-w-0">
-                <Button variant="ghost" aria-label={`Editar ${s.name}`} onClick={() => setEditing(s)} className="h-auto max-w-full justify-start p-0 text-lg font-semibold text-foreground hover:bg-transparent">
+                <Button variant="ghost" aria-label={`Editar ${s.name}`} onClick={() => { setReactivatedNotice(null); setEditing(s); }} className="h-auto max-w-full justify-start p-0 text-lg font-semibold text-foreground hover:bg-transparent">
                   <span className="truncate">{s.name}</span><Pencil className="shrink-0 text-muted-foreground" />
                 </Button>
                 {s.active === false && <span className="mt-1 inline-block rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">Inactivo</span>}
@@ -127,7 +137,7 @@ function Alumnos() {
         ))}
       </ul>
       {nuevo && <StudentEditor busy={busy} onClose={() => setNuevo(false)} onSave={addStudent} />}
-      {editing && <StudentEditor busy={busy} student={editing} onClose={() => setEditing(null)} onSave={async s => await updateStudent(editing.id, s) ? editing.id : false} />}
+      {editing && <StudentEditor busy={busy} student={editing} notice={reactivatedNotice ?? undefined} onClose={() => { setEditing(null); setReactivatedNotice(null); }} onSave={async s => await updateStudent(editing.id, s) ? editing.id : false} />}
       {adding && <AddClasses student={adding} onClose={() => setAdding(null)} />}
       {status && status.nextActive && (
         <ReactivateStudent
@@ -239,7 +249,7 @@ function DeactivateStudent({ student, busy, onCancel, onConfirm }: {
   );
 }
 
-function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean }) {
+function StudentEditor({ onClose, onSave, student, busy, notice }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean; notice?: string | undefined }) {
   const { settings, lessons, addLesson } = useStore();
   const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: null, phone: null, category: null, courtSide: null, slots: [], balance: 0, active: true });
   const [booking, setBooking] = useState(false);
@@ -283,6 +293,11 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
   return (
     <Sheet title={student ? "Editar alumno" : "Nuevo alumno"} onClose={onClose}>
       <div className="space-y-4">
+        {notice && (
+          <p role="status" className="rounded-lg border border-court/30 bg-court/5 p-3 text-sm font-medium text-foreground">
+            {notice}
+          </p>
+        )}
         <fieldset disabled={submitting || busy || Boolean(savedId)} className="space-y-4">
         <input aria-label="Nombre y apellido" placeholder="Nombre y apellido" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]" />
         <input type="tel" inputMode="tel" aria-label="Teléfono" placeholder="Teléfono (opcional)" value={f.phone ?? ""} onChange={(e) => setF({ ...f, phone: e.target.value === "" ? null : e.target.value })} className="h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]" />

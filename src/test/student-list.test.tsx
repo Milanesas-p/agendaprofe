@@ -181,19 +181,59 @@ describe("pausing from the row", () => {
     expect(store.updateStudent).not.toHaveBeenCalled();
   });
 
-  it("reactivates a paused student from the row", async () => {
-    store.students = [student({ id: "s1", name: "Baja Verano", active: false })];
+  it("reactivates a paused student, clears the old schedule and opens the editor", async () => {
+    store.students = [
+      student({
+        id: "s1",
+        name: "Baja Verano",
+        active: false,
+        slots: [{ weekday: 3, time: "09:00" }],
+      }),
+    ];
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Reactivar a Baja Verano" }));
-
     expect(screen.getByText("Ese alumno está inactivo")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Sí, reactivar" }));
 
     await waitFor(() =>
       expect(store.updateStudent).toHaveBeenCalledWith(
         "s1",
-        expect.objectContaining({ active: true }),
+        expect.objectContaining({ active: true, slots: [] }),
+      ),
+    );
+    expect(success).toHaveBeenCalledWith("Baja Verano reactivado. Configurá el alumno nuevamente.");
+    expect(
+      screen.getByText("Cargá los nuevos horarios de Baja Verano y guardá para volver a agendarlo."),
+    ).toBeTruthy();
+    // The editor opens fresh: the previous weekly slot is gone.
+    expect(screen.queryByLabelText("Día del horario 1")).toBeNull();
+  });
+
+  it("saves the new schedule after the guided reactivation", async () => {
+    store.students = [
+      student({
+        id: "s1",
+        name: "Baja Verano",
+        active: false,
+        slots: [{ weekday: 3, time: "09:00" }],
+      }),
+    ];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reactivar a Baja Verano" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sí, reactivar" }));
+    await waitFor(() => expect(store.updateStudent).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Agregar horario" }));
+    fireEvent.change(screen.getByLabelText("Día del horario 1"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Hora del horario 1"), { target: { value: "14:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() =>
+      expect(store.updateStudent).toHaveBeenLastCalledWith(
+        "s1",
+        expect.objectContaining({ active: true, slots: [{ weekday: 5, time: "14:00" }] }),
       ),
     );
   });

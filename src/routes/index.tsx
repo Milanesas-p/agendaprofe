@@ -554,8 +554,11 @@ function Agenda() {
         busy={busy}
         onCancel={() => setPaused(null)}
         onConfirm={async (s) => {
-          if (!(await updateStudent(s.id, activePayload(s, true)))) return;
+          // Coming back asks for a fresh schedule: the old weekly slots are not
+          // resurrected, so this booking does not bring the whole series back.
+          if (!(await updateStudent(s.id, { ...activePayload(s, true), slots: [] }))) return;
           setPaused(null);
+          toast.success(`${s.name} reactivado. Configurá sus horarios en Alumnos.`);
           if (adding && (await addLesson({ date: day, start: adding, studentId: s.id })))
             setAdding(null);
         }}
