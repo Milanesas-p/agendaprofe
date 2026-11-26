@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Route } from "@/routes/alumnos";
 
-const { store } = vi.hoisted(() => ({
+const { store, success } = vi.hoisted(() => ({
   store: {
     students: [] as unknown[],
     lessons: [],
@@ -14,6 +14,7 @@ const { store } = vi.hoisted(() => ({
     addLesson: vi.fn(),
     adjustBalance: vi.fn(),
   },
+  success: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -39,7 +40,7 @@ vi.mock("@/server/data", () => ({
   saveSettings: vi.fn(),
 }));
 vi.mock("@/server/auth", () => ({ getCurrentUser: vi.fn(), loginUser: vi.fn(), logoutUser: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success } }));
 
 const student = (over: Record<string, unknown> = {}) => ({
   id: "student-1",
@@ -64,6 +65,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   store.students = [];
+  store.adjustBalance.mockResolvedValue(true);
 });
 afterEach(cleanup);
 
@@ -143,5 +145,56 @@ describe("student list", () => {
 
     expect(screen.queryByText("Activo Uno")).toBeNull();
     expect(screen.getByText("Baja Verano")).toBeTruthy();
+  });
+});
+
+describe("monthly top-up", () => {
+  it("adds a whole month from the presets and suggests the weekly plan", async () => {
+    store.students = [
+      student({ slots: [{ weekday: 3, time: "09:00" }, { weekday: 5, time: "09:00" }] }),
+    ];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sumar clase" }));
+
+    expect(screen.getByText("Cargá el mes de María Pérez en un solo movimiento.")).toBeTruthy();
+    expect(screen.getByText("2 veces por semana")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sumar 8 clases" }));
+
+    await waitFor(() => expect(store.adjustBalance).toHaveBeenCalledWith("student-1", 8));
+    expect(success).toHaveBeenCalledWith(
+      "Sumaste 8 clases a María Pérez",
+      expect.objectContaining({ description: "8 clases a favor" }),
+    );
+  });
+
+  it("keeps the single tap for a student who is not monthly", () => {
+    store.students = [student({ pay: "individual" })];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sumar clase" }));
+
+    expect(store.adjustBalance).toHaveBeenCalledWith("student-1", 1);
+    expect(screen.queryByText(/Cargá el mes/)).toBeNull();
+  });
+
+  it("undoes a monthly top-up from the toast", async () => {
+    store.students = [
+      student({ slots: [{ weekday: 3, time: "09:00" }, { weekday: 5, time: "09:00" }] }),
+    ];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sumar clase" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sumar 8 clases" }));
+    await waitFor(() => expect(success).toHaveBeenCalled());
+
+    const options = success.mock.calls[0]?.[1] as {
+      action: { label: string; onClick: () => void };
+    };
+    expect(options.action.label).toBe("Deshacer");
+    options.action.onClick();
+
+    expect(store.adjustBalance).toHaveBeenLastCalledWith("student-1", -8);
   });
 });

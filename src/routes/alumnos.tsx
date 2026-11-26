@@ -12,6 +12,7 @@ import { CATEGORIES, COURT_SIDES, courtSideLabel } from "@/lib/player";
 import { canAddToLesson } from "@/lib/rules";
 import { payLabel } from "@/lib/pay";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/alumnos")({
   head: () => ({
@@ -32,6 +33,8 @@ function Alumnos() {
   const [filter, setFilter] = useState<"todos" | "fijo" | "rotativo" | "deuda" | "inactivos">("todos");
   const [nuevo, setNuevo] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
+  // Monthly top-up opened from the row: +1, +4 or +8 in one move.
+  const [adding, setAdding] = useState<Student | null>(null);
   const [search, setSearch] = useState("");
   const inactive = students.filter((s) => s.active === false).length;
   const list = students.filter((s) =>
@@ -91,13 +94,14 @@ function Alumnos() {
             <p className={`mt-0.5 text-sm font-medium lg:mt-0 ${s.balance < 0 ? "text-destructive" : "text-muted-foreground"}`}>{balancePhrase(s.balance)}</p>
             <div className="mt-3 grid grid-cols-2 gap-2 lg:mt-0">
               <Button variant="outline" disabled={busy} aria-label="Restar clase" onClick={() => adjustBalance(s.id, -1)} className="h-11 w-full"><Minus className="h-4 w-4" />Clase</Button>
-              <Button disabled={busy} aria-label="Sumar clase" onClick={() => adjustBalance(s.id, 1)} className="h-11 w-full"><Plus className="h-4 w-4" />Clase</Button>
+              <Button disabled={busy} aria-label="Sumar clase" onClick={() => { if (s.pay === "mensual") setAdding(s); else void adjustBalance(s.id, 1); }} className="h-11 w-full"><Plus className="h-4 w-4" />Clase</Button>
             </div>
           </li>
         ))}
       </ul>
       {nuevo && <StudentEditor busy={busy} onClose={() => setNuevo(false)} onSave={addStudent} />}
       {editing && <StudentEditor busy={busy} student={editing} onClose={() => setEditing(null)} onSave={async s => await updateStudent(editing.id, s) ? editing.id : false} />}
+      {adding && <AddClasses student={adding} onClose={() => setAdding(null)} />}
     </>
   );
 }
@@ -109,6 +113,53 @@ const balancePhrase = (balance: number): string => {
   const owed = Math.abs(balance);
   return `Debe ${owed} ${owed === 1 ? "clase" : "clases"}`;
 };
+
+/**
+ * Quick top-up for a monthly student: the whole month in one move instead of
+ * tapping "+1" four or eight times. The suggestion comes from the weekly slots
+ * (the agenda books four weeks ahead), so the teacher sees which preset matches.
+ */
+function AddClasses({ student, onClose }: { student: Student; onClose: () => void }) {
+  const { adjustBalance, busy } = useStore();
+  const perWeek = student.slots.length;
+  const monthly = perWeek * 4;
+  const hint = (n: number) =>
+    n === monthly && perWeek > 0
+      ? `${perWeek} ${perWeek === 1 ? "vez" : "veces"} por semana`
+      : n === 1
+        ? "una clase"
+        : "clases";
+  const add = async (n: number) => {
+    if (!(await adjustBalance(student.id, n))) return;
+    toast.success(`Sumaste ${n} ${n === 1 ? "clase" : "clases"} a ${student.name}`, {
+      description: balancePhrase(student.balance + n),
+      action: { label: "Deshacer", onClick: () => void adjustBalance(student.id, -n) },
+    });
+    onClose();
+  };
+  return (
+    <Sheet title="Sumar clases" onClose={onClose}>
+      <p className="text-sm text-muted-foreground">
+        Cargá el mes de {student.name} en un solo movimiento.
+      </p>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {[1, 4, 8].map((n) => (
+          <Button
+            key={n}
+            variant="outline"
+            disabled={busy}
+            aria-label={`Sumar ${n} ${n === 1 ? "clase" : "clases"}`}
+            onClick={() => add(n)}
+            className="h-20 flex-col gap-1"
+          >
+            <span className="text-xl font-semibold tabular-nums">+{n}</span>
+            <span className="text-[11px] font-normal text-muted-foreground">{hint(n)}</span>
+          </Button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
 
 function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void; onSave: (s: Omit<Student, "id">) => Promise<string | false>; student?: Student; busy: boolean }) {
   const { settings, lessons, addLesson } = useStore();

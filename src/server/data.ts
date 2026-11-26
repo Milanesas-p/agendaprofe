@@ -493,11 +493,16 @@ export const updateStudent = createServerFn({ method: "POST" })
     });
   });
 
+/** One balance change stays a single batch: a monthly top-up is 4 or 8 classes. */
+const MAX_BALANCE_ADJUST = 20;
+
 export const adjustBalance = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     const raw = (input ?? {}) as Record<string, unknown>;
     const delta = integer(raw["delta"], "ajuste");
-    if (delta !== 1 && delta !== -1) throw new Error("Ajuste inválido.");
+    // A plain tap moves one class; the monthly presets move the whole month at
+    // once. Zero is a no-op and the bound keeps a typo from wrecking the balance.
+    if (delta === 0 || Math.abs(delta) > MAX_BALANCE_ADJUST) throw new Error("Ajuste inválido.");
     return { id: rowId(raw["id"]), delta };
   })
   .handler(async ({ data }): Promise<void> => {
