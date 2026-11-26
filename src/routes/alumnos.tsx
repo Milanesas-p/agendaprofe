@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Minus, UserPlus, Search, Pencil, Upload } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Sheet } from "@/components/Sheet";
+import { ReactivateStudent } from "@/components/ReactivateStudent";
 import { matchesStudent, slotsLabel, WEEKDAYS } from "@/lib/agenda";
 import { useStore, slots, iso, PAY_MODES, type Student, type Category, type CourtSide } from "@/lib/store";
 import type { StudentSlot } from "@/lib/recurrence";
@@ -113,6 +114,8 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
   const { settings, lessons, addLesson } = useStore();
   const [f, setF] = useState<Omit<Student, "id">>(student ?? { name: "", type: "fijo", pay: null, phone: null, category: null, courtSide: null, slots: [], balance: 0, active: true });
   const [booking, setBooking] = useState(false);
+  // Turning booking on for a paused student asks to reactivate them in place.
+  const [askActive, setAskActive] = useState(false);
   const [date, setDate] = useState(() => iso(new Date()));
   const [start, setStart] = useState("");
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -120,7 +123,7 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
   // Only a fijo student gets the extra class from here: a rotativo is booked
   // from the agenda. Deriving it (instead of clearing the switch on change) means
   // a date and time chosen before switching the type can never be booked.
-  const bookAlso = booking && f.type === "fijo";
+  const bookAlso = booking && f.type === "fijo" && f.active;
   const updateSlot = (index: number, patch: Partial<StudentSlot>) =>
     setF({ ...f, slots: f.slots.map((slot, i) => (i === index ? { ...slot, ...patch } : slot)) });
   const addSlot = () => setF({ ...f, slots: [...f.slots, { weekday: 1, time: "" }] });
@@ -192,7 +195,11 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
                 : "No se agendan clases nuevas. El horario, el historial y el saldo se conservan."}
             </p>
           </div>
-          <Switch id="student-active" checked={f.active} disabled={submitting || busy || Boolean(savedId)} onCheckedChange={(value) => setF({ ...f, active: value })} />
+          <Switch id="student-active" checked={f.active} disabled={submitting || busy || Boolean(savedId)} onCheckedChange={(value) => {
+            setF({ ...f, active: value });
+            // A paused student cannot keep a booking half-configured.
+            if (!value) setBooking(false);
+          }} />
         </div>}
         <div className="space-y-2 border-t border-border pt-4">
           <p className="text-sm font-semibold">Horarios semanales</p>
@@ -230,7 +237,10 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
           </p>
         </div>
         </fieldset>
-        {f.type === "fijo" && <div className="flex items-center justify-between gap-3 border-t border-border pt-4"><label htmlFor="student-booking" className="text-sm font-semibold">Agregar clase a la agenda</label><Switch id="student-booking" checked={booking} disabled={submitting || busy} onCheckedChange={setBooking} /></div>}
+        {f.type === "fijo" && <div className="flex items-center justify-between gap-3 border-t border-border pt-4"><label htmlFor="student-booking" className="text-sm font-semibold">Agregar clase a la agenda</label><Switch id="student-booking" checked={bookAlso} disabled={submitting || busy} onCheckedChange={(value) => {
+          if (value && !f.active) { setAskActive(true); return; }
+          setBooking(value);
+        }} /></div>}
         {bookAlso && <div className="space-y-3">
           <label className="block text-sm font-semibold">Día de la clase<input type="date" value={date} disabled={submitting || busy} onChange={e => { setDate(e.target.value); setStart(""); }} className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]" /></label>
           <label className="block text-sm font-semibold">Horario<select value={start} disabled={submitting || busy} onChange={e => setStart(e.target.value)} className="mt-1 h-12 w-full rounded-lg border border-border bg-card px-3 text-[15px]"><option value="">Elegir horario</option>{available.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
@@ -239,6 +249,17 @@ function StudentEditor({ onClose, onSave, student, busy }: { onClose: () => void
         {savedId && <p role="status" className="text-sm text-muted-foreground">Alumno guardado. Falta confirmar la reserva.</p>}
         <Button variant="ghost" disabled={submitting || busy || !f.name.trim() || f.slots.some((slot) => slot.time === "") || (bookAlso && (!date || !available.includes(start)))} onClick={save} className="h-12 w-full text-[15px] disabled:opacity-40">{submitting || busy ? "Guardando…" : bookAlso ? "Guardar y reservar" : "Guardar"}</Button>
       </div>
+      <ReactivateStudent
+        student={askActive ? (student ?? null) : null}
+        busy={submitting || busy}
+        onCancel={() => setAskActive(false)}
+        onConfirm={() => {
+          // Local until the form is saved: one transaction reactivates and books.
+          setF({ ...f, active: true });
+          setBooking(true);
+          setAskActive(false);
+        }}
+      />
     </Sheet>
   );
 }

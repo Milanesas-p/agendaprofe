@@ -2,8 +2,10 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ReactivateStudent } from "@/components/ReactivateStudent";
+import { reactivationPayload } from "@/lib/students";
 import { canAddToLesson } from "@/lib/rules";
-import { useStore, slots, iso, addDays } from "@/lib/store";
+import { useStore, slots, iso, addDays, type Student } from "@/lib/store";
 import { matchesStudent } from "@/lib/agenda";
 
 export const Route = createFileRoute("/nueva-clase")({
@@ -37,9 +39,11 @@ function Step({ number, title, hint, children }: { number: number; title: string
 }
 
 function NuevaClase() {
-  const { students, lessons, settings, addLesson, busy } = useStore();
+  const { students, lessons, settings, addLesson, updateStudent, busy } = useStore();
   const navigate = useNavigate();
   const [studentId, setStudentId] = useState("");
+  // Paused student the teacher tried to pick: ask to reactivate right here.
+  const [paused, setPaused] = useState<Student | null>(null);
   const [search, setSearch] = useState("");
   const [date, setDate] = useState("");
   const [start, setStart] = useState("");
@@ -64,10 +68,20 @@ function NuevaClase() {
       })
     : [];
 
-  const activeStudents = students.filter((s) => s.active !== false);
-  const candidates = activeStudents.filter((s) => matchesStudent(s.name, search));
-  const chosen = activeStudents.find((s) => s.id === studentId);
+  // A paused student stays selectable: picking them asks to reactivate instead
+  // of hiding them, so the teacher does not have to hunt them in the directory.
+  const candidates = students.filter((s) => matchesStudent(s.name, search));
+  const chosen = students.find((s) => s.id === studentId);
   const ready = Boolean(studentId) && Boolean(start);
+
+  function pick(s: Student) {
+    if (s.active === false) {
+      setPaused(s);
+      return;
+    }
+    setStudentId(s.id);
+    setStart("");
+  }
 
   async function submit() {
     if (!ready) return;
@@ -90,12 +104,13 @@ function NuevaClase() {
             <input type="search" aria-label="Buscar alumno para la clase" placeholder="Buscar alumno" value={search} onChange={(e) => setSearch(e.target.value)} className="h-12 w-full min-w-0 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground" />
           </label>
           {candidates.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">{activeStudents.length === 0 ? "Todavía no hay alumnos activos." : "No hay coincidencias."}</p>
+            <p className="mt-3 text-sm text-muted-foreground">{students.length === 0 ? "Todavía no hay alumnos." : "No hay coincidencias."}</p>
           ) : (
             <div className="mt-3 flex flex-wrap gap-2">
               {candidates.map((s) => (
-                <Button variant="ghost" key={s.id} aria-pressed={studentId === s.id} onClick={() => { setStudentId(s.id); setStart(""); }} className={`h-10 rounded-lg px-3 text-sm font-semibold ${studentId === s.id ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
+                <Button variant="ghost" key={s.id} aria-pressed={studentId === s.id} onClick={() => pick(s)} className={`h-10 rounded-lg px-3 text-sm font-semibold ${studentId === s.id ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
                   {s.name}
+                  {s.active === false && <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-70">inactivo</span>}
                 </Button>
               ))}
             </div>
@@ -138,6 +153,18 @@ function NuevaClase() {
           </Button>
         </div>
       </div>
+
+      <ReactivateStudent
+        student={paused}
+        busy={busy}
+        onCancel={() => setPaused(null)}
+        onConfirm={async (s) => {
+          if (!(await updateStudent(s.id, reactivationPayload(s)))) return;
+          setPaused(null);
+          setStudentId(s.id);
+          setStart("");
+        }}
+      />
     </>
   );
 }

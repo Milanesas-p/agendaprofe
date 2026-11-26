@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Route } from "@/routes/index";
@@ -14,6 +14,7 @@ const { store } = vi.hoisted(() => ({
     setStatus: vi.fn(),
     setNotified: vi.fn(),
     addLesson: vi.fn(),
+    updateStudent: vi.fn(),
     moveLesson: vi.fn(),
     setSettings: vi.fn(),
   },
@@ -81,6 +82,7 @@ beforeEach(() => {
   store.students = [];
   store.lessons = [];
   store.addLesson.mockResolvedValue(true);
+  store.updateStudent.mockResolvedValue(true);
   store.moveLesson.mockResolvedValue(true);
   store.setStatus.mockResolvedValue(true);
   store.setNotified.mockResolvedValue(true);
@@ -203,5 +205,24 @@ describe("suggestions in the agenda", () => {
     expand();
 
     expect(screen.queryByText("Sugeridos")).toBeNull();
+  });
+
+  it("asks to reactivate a paused student and then books them", async () => {
+    store.students = [student("s1", "Baja Verano", { active: false })];
+    renderAgenda();
+    expand();
+
+    fireEvent.click(screen.getByRole("button", { name: /Agregar alumno/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Baja Verano/ }));
+
+    expect(screen.getByText("Ese alumno está inactivo")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sí, reactivar" }));
+
+    await waitFor(() =>
+      expect(store.updateStudent).toHaveBeenCalledWith("s1", expect.objectContaining({ active: true })),
+    );
+    await waitFor(() =>
+      expect(store.addLesson).toHaveBeenCalledWith({ date: today, start: "09:00", studentId: "s1" }),
+    );
   });
 });

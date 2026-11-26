@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Route } from "@/routes/alumnos";
 
 const { store } = vi.hoisted(() => ({ store: {
-  students: [], lessons: [] as { date: string; start: string; status: string }[],
+  students: [] as Record<string, unknown>[], lessons: [] as { date: string; start: string; status: string }[],
   settings: { startHour: 8, endHour: 22, blockMin: 60 }, busy: false, loading: false,
   addStudent: vi.fn(), updateStudent: vi.fn(), addLesson: vi.fn(), adjustBalance: vi.fn(),
 } }));
@@ -26,7 +26,7 @@ vi.mock("@/server/auth", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 afterEach(cleanup);
-beforeEach(() => { vi.clearAllMocks(); store.lessons = []; store.addStudent.mockResolvedValue("student-1"); store.addLesson.mockResolvedValue(true); });
+beforeEach(() => { vi.clearAllMocks(); store.students = []; store.lessons = []; store.addStudent.mockResolvedValue("student-1"); store.addLesson.mockResolvedValue(true); store.updateStudent.mockResolvedValue(true); });
 
 function openEditor() {
   const Component = Route.options.component;
@@ -153,6 +153,45 @@ describe("booking is only offered for a fijo student", () => {
 
     await waitFor(() => expect(store.addStudent).toHaveBeenCalled());
     expect(store.addLesson).not.toHaveBeenCalled();
+  });
+});
+
+describe("reactivating from the editor", () => {
+  const pausedStudent = {
+    id: "s1",
+    name: "Beto Pausa",
+    type: "fijo",
+    pay: null,
+    phone: null,
+    category: null,
+    courtSide: null,
+    slots: [],
+    balance: 0,
+    active: false,
+  };
+
+  it("asks to reactivate before booking a paused student", async () => {
+    store.students = [pausedStudent];
+    const Component = Route.options.component;
+    if (!Component) throw new Error("Missing student page");
+    render(<Component />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar Beto Pausa" }));
+    expect(screen.getByRole("switch", { name: "Alumno activo" }).getAttribute("aria-checked")).toBe("false");
+
+    fireEvent.click(screen.getByRole("switch", { name: "Agregar clase a la agenda" }));
+    expect(screen.getByText("Ese alumno está inactivo")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sí, reactivar" }));
+    expect(screen.getByRole("switch", { name: "Alumno activo" }).getAttribute("aria-checked")).toBe("true");
+
+    fireEvent.change(screen.getByLabelText("Día de la clase"), { target: { value: "2026-11-02" } });
+    fireEvent.change(screen.getByLabelText("Horario"), { target: { value: "09:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar y reservar" }));
+
+    await waitFor(() =>
+      expect(store.updateStudent).toHaveBeenCalledWith("s1", expect.objectContaining({ active: true })),
+    );
   });
 });
 

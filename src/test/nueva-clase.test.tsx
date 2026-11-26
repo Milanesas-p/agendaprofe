@@ -11,6 +11,7 @@ const { store, navigate } = vi.hoisted(() => ({
     busy: false,
     loading: false,
     addLesson: vi.fn(),
+    updateStudent: vi.fn(),
   },
   navigate: vi.fn(),
 }));
@@ -117,14 +118,34 @@ describe("new class flow", () => {
     expect(screen.getByRole("button", { name: "Sofía Valenzuela" })).toBeTruthy();
   });
 
-  it("does not offer a disabled student", () => {
+  it("offers a paused student and reactivates them before selecting", async () => {
     store.students = [
       { id: "s1", name: "Baja Verano", active: false },
       student("s2", "Mateo Rossi"),
     ];
+    store.updateStudent.mockResolvedValue(true);
     renderPage();
 
-    expect(screen.queryByRole("button", { name: "Baja Verano" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Mateo Rossi" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Baja Verano/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Baja Verano/ }));
+
+    expect(screen.getByText("Ese alumno está inactivo")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sí, reactivar" }));
+
+    await waitFor(() =>
+      expect(store.updateStudent).toHaveBeenCalledWith("s1", expect.objectContaining({ active: true })),
+    );
+    expect(screen.getByRole("button", { name: /Baja Verano/ }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("leaves a paused student unselected when the teacher says no", () => {
+    store.students = [{ id: "s1", name: "Baja Verano", active: false }];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /Baja Verano/ }));
+    fireEvent.click(screen.getByRole("button", { name: "No" }));
+
+    expect(store.updateStudent).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Baja Verano/ }).getAttribute("aria-pressed")).toBe("false");
   });
 });

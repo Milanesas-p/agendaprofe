@@ -1,5 +1,7 @@
 import { weekStartFor, matchesStudent, movedFromLabel, slotsLabel } from "@/lib/agenda";
 import { Sheet } from "@/components/Sheet";
+import { ReactivateStudent } from "@/components/ReactivateStudent";
+import { reactivationPayload } from "@/lib/students";
 import { Button } from "@/components/ui/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -82,11 +84,23 @@ const usedSlots = (lessons: Lesson[]) =>
   new Set(lessons.filter((l) => l.status !== "cancelada").map((l) => l.start)).size;
 
 function Agenda() {
-  const { lessons, students, settings, setStatus, setNotified, addLesson, moveLesson, busy } =
-    useStore();
+  const {
+    lessons,
+    students,
+    settings,
+    setStatus,
+    setNotified,
+    addLesson,
+    updateStudent,
+    moveLesson,
+    busy,
+  } = useStore();
   const [view, setView] = useState<"dia" | "semana">("dia");
   const [day, setDay] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
+  // A paused student the teacher tried to book: asking to reactivate keeps the
+  // booking flowing instead of sending them to the directory first.
+  const [paused, setPaused] = useState<Student | null>(null);
   const [acting, setActing] = useState<Lesson | null>(null);
   const [moving, setMoving] = useState(false);
   const [moveDate, setMoveDate] = useState("");
@@ -506,6 +520,10 @@ function Agenda() {
                   key={s.id}
                   disabled={busy}
                   onClick={async () => {
+                    if (s.active === false) {
+                      setPaused(s);
+                      return;
+                    }
                     if (await addLesson({ date: day, start: adding, studentId: s.id }))
                       setAdding(null);
                   }}
@@ -513,6 +531,11 @@ function Agenda() {
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="min-w-0 truncate">{s.name}</span>
+                    {s.active === false && (
+                      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Inactivo
+                      </span>
+                    )}
                     {s.balance < 0 && (
                       <span
                         role="img"
@@ -526,6 +549,17 @@ function Agenda() {
           </div>
         </Sheet>
       )}
+      <ReactivateStudent
+        student={paused}
+        busy={busy}
+        onCancel={() => setPaused(null)}
+        onConfirm={async (s) => {
+          if (!(await updateStudent(s.id, reactivationPayload(s)))) return;
+          setPaused(null);
+          if (adding && (await addLesson({ date: day, start: adding, studentId: s.id })))
+            setAdding(null);
+        }}
+      />
       {acting && (
         <Sheet
           title={actingStudent?.name ?? "Alumno"}
